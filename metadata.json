@@ -1,0 +1,7 @@
+{
+  "name": "NEXUS AGRI",
+  "description": "AI-powered agricultural intelligence and decision platform turning farm, soil, satellite, weather, and market data into actionable farming decisions.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

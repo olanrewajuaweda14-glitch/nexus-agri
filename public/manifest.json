@@ -1,0 +1,16 @@
+{
+  "name": "NEXUS AGRI — Agricultural Intelligence",
+  "short_name": "NEXUS AGRI",
+  "description": "AI-Powered Agricultural Intelligence & Decision Platform",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d2319",
+  "theme_color": "#0d2319",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
