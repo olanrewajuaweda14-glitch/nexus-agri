@@ -131,6 +131,7 @@ const LAB_FIELDS: { k: keyof SoilSummary; label: string; unit: string; step: str
 
 function LabForm({ farm, onSave }: { farm: Farm; onSave: (lab: Partial<SoilSummary> | undefined) => void }) {
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [vals, setVals] = useState<Record<string, string>>(() =>
     Object.fromEntries(LAB_FIELDS.map((f) => [f.k, farm.labSoil?.[f.k] != null ? String(farm.labSoil[f.k]) : ''])),
   );
@@ -143,7 +144,6 @@ function LabForm({ farm, onSave }: { farm: Farm; onSave: (lab: Partial<SoilSumma
     );
   }
 
-  const [error, setError] = useState<string | null>(null);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const lab: Partial<SoilSummary> = {};

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarCheck, ChevronDown, CloudSun, Coins, Layers, MessageCircle, Pencil, Plus, RefreshCw, WifiOff } from 'lucide-react';
 import type { Farm } from './lib/types';
-import { KEYS, load, remove, save } from './lib/storage';
+import { KEYS, load, remove, removeByPrefix, save } from './lib/storage';
 import { addDays, localToday } from './lib/dates';
 import { useInsights } from './lib/useInsights';
 import { ago } from './lib/format';
@@ -91,6 +91,12 @@ export function App() {
               ? () => {
                   setFarms((fs) => fs.filter((x) => x.id !== editing.id));
                   remove(KEYS.chat(editing.id));
+                  removeByPrefix(KEYS.budget(`${editing.id}:`));
+                  setDone((prev) => {
+                    const next = new Set([...prev].filter((k) => !k.startsWith(`${editing.id}:`)));
+                    save(KEYS.done, [...next]);
+                    return next;
+                  });
                   setActiveId(null);
                   setMode('app');
                 }

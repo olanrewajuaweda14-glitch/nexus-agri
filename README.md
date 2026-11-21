@@ -40,7 +40,8 @@ npm run dev             # http://localhost:3000
 ```
 
 ```bash
-npm test                # engine + data-normaliser tests
+npm test                # unit tests: agronomy engine, data normalisers, API handler
+npm run e2e             # browser tests on phone and desktop sizes (first run: npx playwright install chromium)
 npm run lint            # strict TypeScript
 npm run build && npm start
 ```

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Crosshair, Loader2 } from 'lucide-react';
 import type { CropId, Farm, Maturity, WaterSource } from '../lib/types';
 import { CROP_LIST, CROPS } from '../lib/crops';
-import { localToday } from '../lib/dates';
+import { daysBetween, localToday } from '../lib/dates';
 import { getPlace } from '../lib/data/api';
 import { MapPicker } from '../components/MapPicker';
 import { Segmented } from '../components/ui';
@@ -28,9 +28,13 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
     // Drop the old name straight away so a failed lookup can't leave the previous place's name on a new pin.
     setPlaceName('');
     const id = ++lookup.current;
-    getPlace(lat, lng).then((name) => {
-      if (name && id === lookup.current) setPlaceName(name);
-    });
+    // Wait until the pin settles: OpenStreetMap allows about one lookup per second.
+    window.setTimeout(() => {
+      if (id !== lookup.current) return;
+      getPlace(lat, lng).then((name) => {
+        if (name && id === lookup.current) setPlaceName(name);
+      });
+    }, 700);
   };
 
   const locate = () => {
@@ -52,7 +56,16 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
 
   const sizeNum = parseFloat(size);
   const sizeHa = unit === 'ha' ? sizeNum : sizeNum * ACRE;
-  const valid = !!pt && name.trim().length > 0 && Number.isFinite(sizeHa) && sizeHa > 0 && !!planting;
+  const plantingOffset = planting ? daysBetween(localToday(), planting) : NaN;
+  const dateProblem = !planting || !Number.isFinite(plantingOffset)
+    ? 'Enter the planting date.'
+    : plantingOffset > 365
+      ? 'That planting date is more than a year away — check the year.'
+      : plantingOffset < -730
+        ? 'That planting date is more than two years ago — check the year.'
+        : null;
+  const sizeProblem = !Number.isFinite(sizeHa) || sizeHa <= 0 ? 'Enter the field size.' : sizeHa > 5000 ? 'That is over 5,000 ha — check the size and unit.' : null;
+  const valid = !!pt && name.trim().length > 0 && !dateProblem && !sizeProblem;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +166,11 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
           </button>
         )}
       </div>
-      {!valid && <p className="text-sm text-ink-3">{!pt ? 'Place the field on the map to continue.' : !name.trim() ? 'Give the field a name to continue.' : ''}</p>}
+      {!valid && (
+        <p className="text-sm text-ink-3" role="status">
+          {!pt ? 'Place the field on the map to continue.' : dateProblem ?? sizeProblem ?? (!name.trim() ? 'Give the field a name to continue.' : '')}
+        </p>
+      )}
     </form>
   );
 }

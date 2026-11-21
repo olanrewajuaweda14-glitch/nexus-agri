@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { CountUp } from './motion';
 
@@ -83,30 +83,29 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 export function NumberInput({ value, onChange, className = '', grouped = false, ...rest }: { value: number; onChange: (n: number) => void; className?: string; grouped?: boolean } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>) {
   const fmt = (n: number) => (grouped ? n.toLocaleString('en-NG', { maximumFractionDigits: 2 }) : String(n));
   const [text, setText] = useState(() => fmt(value));
-  const [editing, setEditing] = useState(false);
+  const editing = useRef(false);
+  // Follow outside changes (reset, other farm) but never rewrite the box while someone is typing in it.
   useEffect(() => {
-    if (!editing) setText(fmt(value));
-  }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!editing.current) setText(fmt(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <input
       {...rest}
       type="text"
       inputMode="decimal"
+      autoComplete="off"
       className={className}
       value={text}
-      onFocus={(e) => {
-        setEditing(true);
-        setText(String(value));
-        requestAnimationFrame(() => e.target.select());
+      onFocus={() => {
+        editing.current = true;
       }}
       onBlur={() => {
-        setEditing(false);
+        editing.current = false;
         setText(fmt(value));
       }}
       onChange={(e) => {
-        const raw = e.target.value.replace(/[^\d.]/g, '');
-        setText(raw);
-        const n = parseFloat(raw);
+        setText(e.target.value);
+        const n = parseFloat(e.target.value.replace(/[^\d.]/g, ''));
         onChange(Number.isFinite(n) && n >= 0 ? n : 0);
       }}
     />

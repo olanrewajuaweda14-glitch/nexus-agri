@@ -76,7 +76,7 @@ export function ActionCard({ action, done, onToggle, defaultOpen = false }: { ac
       </div>
       <div className="expand" data-open={open}>
         <div>
-          <div className="space-y-3 border-t border-line-2 py-3.5 pl-[68px] pr-4 text-[15px] leading-relaxed" aria-hidden={!open}>
+          <div className="space-y-3 border-t border-line-2 py-3.5 pl-[68px] pr-4 text-[15px] leading-relaxed" inert={!open}>
             <ul className="space-y-1.5 text-ink-2">
               {action.why.map((w, i) => (
                 <li key={i} className="relative pl-3.5 before:absolute before:left-0 before:top-[0.6em] before:h-1 before:w-1 before:rounded-full before:bg-ink-3">
