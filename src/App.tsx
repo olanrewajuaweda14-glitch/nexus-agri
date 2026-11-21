@@ -252,6 +252,7 @@ function FarmSwitcher({ farm, farms, onSwitch, onAdd }: { farm: Farm; farms: Far
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <EscapeToClose onClose={() => setOpen(false)} />
           <ul role="listbox" className="card absolute left-0 top-full z-40 mt-1 w-72 overflow-hidden p-1 shadow-lg">
             {farms.map((f) => (
               <li key={f.id}>
@@ -277,4 +278,13 @@ function FarmSwitcher({ farm, farms, onSwitch, onAdd }: { farm: Farm; farms: Far
       )}
     </div>
   );
+}
+
+function EscapeToClose({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+  return null;
 }

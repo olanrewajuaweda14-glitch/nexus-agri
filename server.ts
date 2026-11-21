@@ -1,15 +1,15 @@
+// Must load before anything reads process.env (ES imports are evaluated first).
+import 'dotenv/config';
 import express from 'express';
 import compression from 'compression';
 import path from 'path';
-import dotenv from 'dotenv';
 import { getClimate, getSoil, getWeather, reverseGeocode, UpstreamError } from './server/sources';
-import { ai, AiUnavailable, ask, diagnose, LANGUAGES, MODEL } from './server/ai';
-
-dotenv.config();
+import { ai, AiFailed, AiUnavailable, ask, diagnose, LANGUAGES, MODEL } from './server/ai';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const isProd = process.env.NODE_ENV === 'production';
+// `npm start` runs the bundled dist/server.cjs; treat that as production without needing NODE_ENV (which Windows shells can't set inline).
+const isProd = process.env.NODE_ENV === 'production' || !!process.argv[1]?.endsWith('server.cjs');
 
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
@@ -50,6 +50,9 @@ const handle = (fn: (req: express.Request, res: express.Response) => Promise<unk
   } catch (e) {
     if (e instanceof AiUnavailable) {
       return res.status(503).json({ error: 'ai_not_configured', message: 'The AI advisor is not set up on this server (GEMINI_API_KEY missing).' });
+    }
+    if (e instanceof AiFailed) {
+      return res.status(502).json({ error: 'ai_failed', message: e.message });
     }
     if (e instanceof UpstreamError) {
       return res.status(502).json({ error: 'upstream', source: e.source, message: e.message });

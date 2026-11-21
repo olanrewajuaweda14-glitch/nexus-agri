@@ -38,8 +38,8 @@ export const relativeDay = (d: string, today: string) => {
 
 /** Hour label from a local ISO time like 2026-11-21T07:00 → "7 am". */
 export const hourLabel = (t: string) => {
-  const h = Number(t.slice(11, 13));
-  if (h === 0) return '12 am';
+  const h = Number(t.slice(11, 13)) % 24;
+  if (h === 0) return 'midnight';
   if (h === 12) return 'noon';
   return h < 12 ? `${h} am` : `${h - 12} pm`;
 };

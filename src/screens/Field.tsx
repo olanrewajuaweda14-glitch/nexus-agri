@@ -9,14 +9,18 @@ import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui'
 
 export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; onUpdateFarm: (patch: Partial<Farm>) => void }) {
   const { derived, soil, soilSummary, limits, findings, crop, stage, today } = ins;
-  const water = derived?.water;
+  const water = derived.water;
   const hasLab = !!farm.labSoil && Object.values(farm.labSoil).some((v) => v != null);
 
   return (
     <div className="space-y-10">
       <Section title="Water in the root zone" id="water">
         {!water ? (
-          ins.weather.status === 'error' ? <ErrorNote title="Needs the weather data" detail={ins.weather.error} onRetry={ins.refresh} /> : <Skeleton className="h-72" />
+          ins.weather.status === 'error' || ins.weather.data ? (
+            <ErrorNote title="The water balance needs a current forecast" detail={ins.weather.error ?? 'The forecast saved on this phone no longer covers today.'} onRetry={ins.refresh} />
+          ) : (
+            <Skeleton className="h-72" />
+          )
         ) : (
           <div className="card space-y-5 p-4">
             {farm.crop === 'rice' && farm.water === 'irrigated' && (
@@ -136,6 +140,7 @@ function LabForm({ farm, onSave }: { farm: Farm; onSave: (lab: Partial<SoilSumma
     );
   }
 
+  const [error, setError] = useState<string | null>(null);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const lab: Partial<SoilSummary> = {};
@@ -143,6 +148,14 @@ function LabForm({ farm, onSave }: { farm: Farm; onSave: (lab: Partial<SoilSumma
       const v = parseFloat(vals[f.k]);
       if (Number.isFinite(v)) (lab as any)[f.k] = v;
     }
+    const problem =
+      lab.ph != null && (lab.ph < 3 || lab.ph > 10) ? 'pH should be between 3 and 10.'
+      : (lab.sandPct ?? 0) + (lab.clayPct ?? 0) > 100 ? 'Sand and clay together cannot be more than 100%.'
+      : Object.values(lab).some((v) => (v as number) < 0) ? 'Values cannot be negative.'
+      : lab.socGKg != null && lab.socGKg > 150 ? 'Organic carbon looks too high — enter it in g/kg (1% = 10 g/kg).'
+      : null;
+    if (problem) return setError(problem);
+    setError(null);
     onSave(Object.keys(lab).length ? lab : undefined);
     setOpen(false);
   };
@@ -158,7 +171,8 @@ function LabForm({ farm, onSave }: { farm: Farm; onSave: (lab: Partial<SoilSumma
           </label>
         ))}
       </div>
-      <div className="flex gap-2">
+      {error && <p role="alert" className="text-sm text-clay">{error}</p>}
+      <div className="flex flex-wrap gap-2">
         <button type="submit" className="btn btn-primary">Save</button>
         <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
         {farm.labSoil && (

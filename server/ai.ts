@@ -17,6 +17,27 @@ export function ai(): GoogleGenAI | null {
 }
 
 export class AiUnavailable extends Error {}
+export class AiFailed extends Error {}
+
+/** Runs a Gemini call and turns SDK/HTTP/JSON failures into one readable error. */
+async function call(fn: () => Promise<{ text?: string }>) {
+  let text: string | undefined;
+  try {
+    text = (await fn()).text;
+  } catch (e: any) {
+    const status = e?.status ?? e?.code;
+    const msg = String(e?.message ?? e).slice(0, 200);
+    if (status === 404 || /not found/i.test(msg)) throw new AiFailed(`Model "${MODEL}" was not found. Set GEMINI_MODEL to a model your key can use.`);
+    if (status === 401 || status === 403 || /api key/i.test(msg)) throw new AiFailed('Gemini rejected the API key. Check GEMINI_API_KEY.');
+    if (status === 429) throw new AiFailed('Gemini rate limit reached — try again in a minute.');
+    throw new AiFailed(`Gemini request failed: ${msg}`);
+  }
+  try {
+    return JSON.parse(text || '');
+  } catch {
+    throw new AiFailed('The advisor returned an unreadable answer. Please ask again.');
+  }
+}
 
 export const LANGUAGES: Record<string, string> = {
   en: 'English',
@@ -69,12 +90,13 @@ export async function ask(input: AskInput) {
     },
   ];
 
-  const res = await client.models.generateContent({
-    model: MODEL,
-    contents,
-    config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: ASK_SCHEMA, temperature: 0.3 },
-  });
-  return JSON.parse(res.text || '{}');
+  return call(() =>
+    client.models.generateContent({
+      model: MODEL,
+      contents,
+      config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: ASK_SCHEMA, temperature: 0.3 },
+    }),
+  );
 }
 
 const DIAGNOSE_SCHEMA = {
@@ -122,10 +144,11 @@ Farmer's note: "${input.notes.slice(0, 500)}"
 
 Rules: list up to 3 candidate causes, ranked. Photos alone rarely prove a cause — say so with "possible" when symptoms overlap (e.g. nitrogen deficiency vs. drought vs. streak virus). Prefer field checks the farmer can do today. Reply in ${lang}.`;
 
-  const res = await client.models.generateContent({
-    model: MODEL,
-    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: input.mimeType, data: input.imageBase64 } }, { text: prompt }] }],
-    config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: DIAGNOSE_SCHEMA, temperature: 0.2 },
-  });
-  return JSON.parse(res.text || '{}');
+  return call(() =>
+    client.models.generateContent({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ inlineData: { mimeType: input.mimeType, data: input.imageBase64 } }, { text: prompt }] }],
+      config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', responseJsonSchema: DIAGNOSE_SCHEMA, temperature: 0.2 },
+    }),
+  );
 }

@@ -1,8 +1,8 @@
 import { Share2 } from 'lucide-react';
 import type { Farm, PlanAction, Priority } from '../lib/types';
 import type { Insights } from '../lib/useInsights';
-import { key, formatWindow } from '../lib/engine/plan';
-import { shortDate, weekdayLong } from '../lib/dates';
+import { key, formatWindow, seasonAhead } from '../lib/engine/plan';
+import { daysBetween, shortDate, weekdayLong } from '../lib/dates';
 import { ActionCard, PRIORITY_TONE } from '../components/ActionCard';
 import { CropTimeline, WeekStrip } from '../components/charts';
 import { ErrorNote, Section, Skeleton } from '../components/ui';
@@ -15,11 +15,13 @@ interface Props {
 }
 
 export function Today({ farm, ins, done, toggleDone }: Props) {
-  const { crop, stage, weather, derived, today } = ins;
-  const plan = derived?.plan ?? [];
+  const { crop, stage, weather, derived, today, forecast } = ins;
+  const plan = derived.plan;
   const isDone = (a: PlanAction) => done.has(key(farm, a.id));
   const open = plan.filter((a) => !isDone(a));
   const count = (p: Priority) => open.filter((a) => a.priority === p).length;
+  const loading = !forecast && (weather.status === 'loading' || weather.status === 'idle');
+  const ahead = stage.status === 'growing' ? seasonAhead(farm, crop, today, done).slice(0, 5) : [];
 
   return (
     <div className="space-y-8">
@@ -31,7 +33,7 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         <div>
           <h1 className="font-display text-[34px] font-semibold leading-[1.05] tracking-tight sm:text-5xl">
             {stage.status === 'not-planted' ? (
-              <>{crop.name}, planting in {-stage.dap} days</>
+              <>{crop.name}, planting in {-stage.dap} day{stage.dap === -1 ? '' : 's'}</>
             ) : stage.status === 'mature' ? (
               <>{crop.name} is mature</>
             ) : (
@@ -50,24 +52,13 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         {stage.status !== 'not-planted' && <CropTimeline crop={crop} dap={stage.dap} />}
       </header>
 
-      {weather.status === 'error' && !weather.data && (
-        <ErrorNote
-          title="Couldn't load the weather for this farm"
-          detail={`${weather.error} The plan needs the forecast to time fertilizer, spraying and water. Calendar tasks still apply.`}
-          onRetry={ins.refresh}
-        />
-      )}
-      {weather.stale && weather.data && (
-        <p className="rounded-lg bg-sun-soft px-3 py-2 text-sm text-ink">
-          Offline — showing the forecast saved {new Date(weather.savedAt!).toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}. Reconnect to update.
-        </p>
-      )}
+      <ForecastNotice ins={ins} />
 
       <Section
         title="This week's plan"
         id="plan"
         aside={
-          derived && open.length > 0 ? (
+          open.length > 0 && !loading ? (
             <span>
               {count('now') > 0 && <b className="font-semibold text-clay">{count('now')} now</b>}
               {count('now') > 0 && count('week') > 0 && ' · '}
@@ -76,14 +67,18 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
           ) : null
         }
       >
-        {!derived && weather.status !== 'error' ? (
-          <div className="space-y-2">
+        {loading ? (
+          <div className="space-y-2" aria-busy="true" aria-label="Loading plan">
             <Skeleton className="h-[74px]" />
             <Skeleton className="h-[74px]" />
             <Skeleton className="h-[74px]" />
           </div>
         ) : plan.length === 0 ? (
-          <div className="card p-5 text-ink-2">Nothing scheduled for this week. Walk the field and check for pests and weeds.</div>
+          <div className="card p-5 text-[15px] text-ink-2">
+            {stage.status === 'mature'
+              ? 'The season is over for this crop. Edit the farm to start the next planting.'
+              : 'Nothing scheduled this week. A walk through the field to check for pests and weeds is still worth it.'}
+          </div>
         ) : (
           <div className="space-y-5">
             {(['now', 'week', 'watch'] as Priority[]).map((p) => {
@@ -93,7 +88,7 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
                 <div key={p} className="space-y-2">
                   <h3 className={`eyebrow inline-block rounded px-1.5 py-0.5 ${PRIORITY_TONE[p].chip}`}>{PRIORITY_TONE[p].label}</h3>
                   {items.map((a, i) => (
-                    <ActionCard key={a.id} action={a} done={isDone(a)} onToggle={() => toggleDone(key(farm, a.id))} defaultOpen={p === 'now' && i === 0} />
+                    <ActionCard key={a.id} action={a} done={isDone(a)} onToggle={() => toggleDone(key(farm, a.id))} defaultOpen={p === 'now' && i === 0 && !isDone(a)} />
                   ))}
                 </div>
               );
@@ -102,31 +97,76 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         )}
       </Section>
 
-      {weather.data && (
+      {forecast && derived.spray && (
         <Section title="Next 8 days" id="week" aside={<span>rain mm · chance · high/low</span>}>
           <div className="card p-3">
-            <WeekStrip weather={weather.data} spray={derived?.spray} />
-            {derived && (
-              <p className="mt-2 border-t border-line-2 px-1 pt-3 text-sm text-ink-2">
-                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-leaf align-middle" />
-                {derived.spray.next ? (
-                  <>Next spray window <b className="font-semibold text-ink">{formatWindow(derived.spray.next, today)}</b></>
-                ) : (
-                  <>No safe spray window in the next 72 hours.</>
-                )}
-              </p>
-            )}
+            <WeekStrip weather={forecast} today={today} spray={derived.spray} />
+            <p className="mt-2 border-t border-line-2 px-1 pt-3 text-sm text-ink-2">
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-leaf align-middle" aria-hidden />
+              {derived.spray.next ? (
+                <>Next spray window <b className="font-semibold text-ink">{formatWindow(derived.spray.next, today)}</b></>
+              ) : (
+                <>No safe spray window in the next 72 hours.</>
+              )}
+            </p>
           </div>
         </Section>
       )}
 
-      {derived && open.length > 0 && (
+      {ahead.length > 0 && (
+        <Section title="Later this season" id="ahead">
+          <ol className="card divide-y divide-line-2">
+            {ahead.map((t) => {
+              const inDays = daysBetween(today, t.start);
+              return (
+                <li key={t.id} className="flex items-baseline gap-4 px-4 py-3">
+                  <span className="num w-16 shrink-0 text-sm text-ink-2">{shortDate(t.start)}</span>
+                  <span className="min-w-0 flex-1 text-[15px]">{t.title}</span>
+                  <span className="shrink-0 text-xs text-ink-3">in {inDays < 14 ? `${inDays} days` : `${Math.round(inDays / 7)} weeks`}</span>
+                </li>
+              );
+            })}
+          </ol>
+        </Section>
+      )}
+
+      {open.length > 0 && !loading && (
         <button type="button" className="btn btn-ghost w-full sm:w-auto" onClick={() => sharePlan(farm, ins, open)}>
           <Share2 className="h-4 w-4" aria-hidden /> Send this plan on WhatsApp
         </button>
       )}
     </div>
   );
+}
+
+function ForecastNotice({ ins }: { ins: Insights }) {
+  const { weather, forecast } = ins;
+  if (weather.status === 'error') {
+    return (
+      <ErrorNote
+        title="Couldn't load the forecast"
+        detail={`${weather.error ?? ''} Calendar jobs are shown below without weather timing. Check the soil and sky before fertilizing or spraying.`}
+        onRetry={ins.refresh}
+      />
+    );
+  }
+  if (weather.data && !forecast) {
+    return (
+      <ErrorNote
+        title="Saved forecast is out of date"
+        detail="The last forecast on this phone no longer covers today. Connect to the internet and refresh to get timing advice."
+        onRetry={ins.refresh}
+      />
+    );
+  }
+  if (weather.stale && weather.savedAt) {
+    return (
+      <p className="rounded-lg bg-sun-soft px-3 py-2 text-sm text-ink">
+        Offline — using the forecast saved {new Date(weather.savedAt).toLocaleString('en-GB', { weekday: 'short', hour: 'numeric', minute: '2-digit' })}. Refresh when you have signal.
+      </p>
+    );
+  }
+  return null;
 }
 
 function sharePlan(farm: Farm, ins: Insights, actions: PlanAction[]) {

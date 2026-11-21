@@ -35,7 +35,9 @@ export const SPRAY_RULES = {
 };
 
 export function sprayOutlook(h: HourlySeries, nowIso: string, horizonHours = 72) {
-  const start = Math.max(0, h.time.findIndex((t) => t >= nowIso.slice(0, 13)));
+  // Forecast hours are local "YYYY-MM-DDTHH:00"; compare on the hour.
+  const found = h.time.findIndex((t) => t.slice(0, 13) >= nowIso.slice(0, 13));
+  const start = found < 0 ? h.time.length : found;
   const end = Math.min(h.time.length, start + horizonHours);
   const hours: SprayHour[] = [];
 

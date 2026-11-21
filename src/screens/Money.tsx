@@ -5,7 +5,7 @@ import { CROPS } from '../lib/crops';
 import { economics, sensitivity } from '../lib/engine/economics';
 import { naira } from '../lib/format';
 import { KEYS, load, save } from '../lib/storage';
-import { Section, Stat } from '../components/ui';
+import { NumberInput, Section, Stat } from '../components/ui';
 
 interface Stored extends Budget {
   edited: boolean;
@@ -64,24 +64,21 @@ export function Money({ farm }: { farm: Farm }) {
             <CostBar b={b} />
             <ul className="mt-3 space-y-2">
               {b.costs.map((c, i) => (
-                <li key={c.id} className="flex items-center gap-2">
+                <li key={c.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 sm:grid-cols-[1fr_9rem_auto]">
                   <input
                     aria-label="Cost item"
-                    className="field flex-1 py-2"
+                    className="field min-w-0 py-2"
                     value={c.label}
                     onChange={(ev) => update({ costs: b.costs.map((x, j) => (j === i ? { ...x, label: ev.target.value } : x)) })}
                   />
-                  <div className="relative w-36 shrink-0">
+                  <div className="relative w-32 sm:w-36">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">₦</span>
-                    <input
+                    <NumberInput
                       aria-label={`${c.label} amount`}
                       className="field num py-2 pl-7 text-right"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={1000}
+                      grouped
                       value={c.amount}
-                      onChange={(ev) => update({ costs: b.costs.map((x, j) => (j === i ? { ...x, amount: Number(ev.target.value) || 0 } : x)) })}
+                      onChange={(n) => update({ costs: b.costs.map((x, j) => (j === i ? { ...x, amount: n } : x)) })}
                     />
                   </div>
                   <button type="button" aria-label={`Remove ${c.label}`} className="rounded-full p-2 text-ink-3 hover:bg-paper hover:text-clay" onClick={() => update({ costs: b.costs.filter((_, j) => j !== i) })}>
@@ -171,7 +168,7 @@ function NumField({ label, unit, value, step, onChange }: { label: string; unit:
   return (
     <label className="text-sm">
       <span className="mb-1 block text-ink-2">{label} <span className="text-ink-3">({unit})</span></span>
-      <input className="field num" type="number" inputMode="decimal" min={0} step={step} value={value} onChange={(e) => onChange(Math.max(0, Number(e.target.value) || 0))} />
+      <NumberInput className="field num" grouped={step >= 1000} value={value} onChange={onChange} />
     </label>
   );
 }

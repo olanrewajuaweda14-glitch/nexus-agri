@@ -57,20 +57,21 @@ export function useInsights(farm: Farm, done: Set<string>) {
   const [soil, reloadSoil] = useSource<SoilBundle>(getSoil, farm.lat, farm.lng);
 
   const crop = useMemo(() => scaledCrop(farm.crop, farm.maturity), [farm.crop, farm.maturity]);
-  const w = weather.data;
-  const today = w?.today ?? localToday();
+  // Today's date at the farm, from the clock — not from the saved forecast, which may be days old when offline.
+  const today = weather.data ? farmNow(weather.data).slice(0, 10) : localToday();
+  // A saved forecast is only usable while it still covers today.
+  const w = weather.data && weather.data.daily.time.includes(today) ? weather.data : null;
   const stage = useMemo(() => stageFor(crop, farm.plantingDate, today), [crop, farm.plantingDate, today]);
   const soilSummary = useMemo(() => mergedSoil(soil.data, farm.labSoil), [soil.data, farm.labSoil]);
   const limits = useMemo(() => waterLimits(soilSummary), [soilSummary]);
   const findings = useMemo(() => interpretSoil(soilSummary, crop), [soilSummary, crop]);
 
   const derived = useMemo(() => {
-    if (!w) return null;
-    const water = waterBalance(w.daily, w.today, crop, farm.plantingDate, limits);
-    const spray = sprayOutlook(w.hourly, farmNow(w));
-    const plan = buildPlan({ farm, crop, stage, weather: w, water, spray, soilFindings: findings, climate: climate.data, done });
-    return { water, spray, plan };
-  }, [w, crop, farm, stage, limits, findings, climate.data, done]);
+    const water = w ? waterBalance(w.daily, today, crop, farm.plantingDate, limits) : null;
+    const spray = w ? sprayOutlook(w.hourly, farmNow(w)) : null;
+    const plan = buildPlan({ farm, crop, stage, today, weather: w, water, spray, soilFindings: findings, climate: climate.data, done });
+    return { water, spray, plan, forecastOk: !!w };
+  }, [w, today, crop, farm, stage, limits, findings, climate.data, done]);
 
   const refresh = useCallback(() => {
     reloadWeather(true);
@@ -78,7 +79,7 @@ export function useInsights(farm: Farm, done: Set<string>) {
     reloadSoil(true);
   }, [reloadWeather, reloadClimate, reloadSoil]);
 
-  return { weather, climate, soil, crop, stage, soilSummary, limits, findings, derived, today, refresh };
+  return { weather, climate, soil, crop, stage, soilSummary, limits, findings, derived, today, forecast: w, refresh };
 }
 
 export type Insights = ReturnType<typeof useInsights>;

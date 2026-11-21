@@ -42,9 +42,9 @@ export function CropTimeline({ crop, dap }: { crop: CropDef; dap: number }) {
 
 /* --------------------------------- Week strip -------------------------------- */
 
-export function WeekStrip({ weather, spray }: { weather: WeatherBundle; spray?: SprayOutlook }) {
-  const { daily, today } = weather;
-  const idx = daily.time.findIndex((d) => d === today);
+export function WeekStrip({ weather, today, spray }: { weather: WeatherBundle; today: string; spray?: SprayOutlook }) {
+  const { daily } = weather;
+  const idx = Math.max(0, daily.time.findIndex((d) => d === today));
   const days = daily.time.slice(idx, idx + 8).map((date, k) => {
     const i = idx + k;
     return { date, rain: daily.precip[i] ?? 0, prob: daily.precipProb[i] ?? 0, tMax: daily.tMax[i], tMin: daily.tMin[i] };
@@ -54,26 +54,30 @@ export function WeekStrip({ weather, spray }: { weather: WeatherBundle; spray?: 
   const scale = Math.max(20, ...days.map((d) => d.rain));
 
   return (
-    <div className="grid grid-cols-8 gap-1" role="table" aria-label="8-day forecast">
+    <ol className="grid grid-cols-8 gap-1" aria-label="8-day forecast">
       {days.map((d, k) => (
-        <div key={d.date} role="row" className={`flex flex-col items-center rounded-lg px-0.5 py-2 ${k === 0 ? 'bg-paper' : ''}`}>
-          <div role="cell" className={`text-[11px] font-medium ${k === 0 ? 'text-ink' : 'text-ink-3'}`}>{k === 0 ? 'Today' : weekday(d.date)}</div>
-          <div role="cell" className="relative mt-1.5 flex h-14 w-full items-end justify-center" aria-label={`${d.rain} mm rain, ${d.prob}% chance`}>
+        <li
+          key={d.date}
+          className={`flex flex-col items-center rounded-lg px-0.5 py-2 ${k === 0 ? 'bg-paper' : ''}`}
+          aria-label={`${k === 0 ? 'Today' : weekday(d.date)}: ${d.rain} mm rain, ${d.prob}% chance, high ${d.tMax ?? '?'}°, low ${d.tMin ?? '?'}°${windowDays.has(d.date) ? ', spray window' : ''}`}
+        >
+          <div className={`text-[11px] font-medium ${k === 0 ? 'text-ink' : 'text-ink-3'}`}>{k === 0 ? 'Today' : weekday(d.date)}</div>
+          <div className="relative mt-1.5 flex h-14 w-full items-end justify-center" aria-hidden>
             <div
               className="w-3 rounded-t-sm bg-rain"
               style={{ height: `${Math.max(d.rain > 0 ? 6 : 2, (d.rain / scale) * 100)}%`, opacity: d.rain > 0 ? 0.35 + (d.prob / 100) * 0.65 : 0.15 }}
             />
           </div>
-          <div role="cell" className="num mt-1 text-[11px] text-rain">{d.rain >= 1 ? Math.round(d.rain) : d.rain > 0 ? '<1' : '0'}</div>
-          <div role="cell" className="num text-[10px] text-ink-3">{d.prob}%</div>
-          <div role="cell" className="num mt-1 text-[12px] text-ink">{d.tMax != null ? Math.round(d.tMax) : '–'}°</div>
-          <div role="cell" className="num text-[10px] text-ink-3">{d.tMin != null ? Math.round(d.tMin) : '–'}°</div>
+          <div className="num mt-1 text-[11px] text-rain">{d.rain >= 1 ? Math.round(d.rain) : d.rain > 0 ? '<1' : '0'}</div>
+          <div className="num text-[10px] text-ink-3">{d.prob}%</div>
+          <div className="num mt-1 text-[12px] text-ink">{d.tMax != null ? Math.round(d.tMax) : '–'}°</div>
+          <div className="num text-[10px] text-ink-3">{d.tMin != null ? Math.round(d.tMin) : '–'}°</div>
           {spray && d.date <= sprayUntil && (
-            <div role="cell" className="mt-1.5 h-1.5 w-1.5 rounded-full" style={{ background: windowDays.has(d.date) ? 'var(--color-leaf)' : 'var(--color-line)' }} title={windowDays.has(d.date) ? 'Spray window' : 'No spray window'} />
+            <div className="mt-1.5 h-1.5 w-1.5 rounded-full" style={{ background: windowDays.has(d.date) ? 'var(--color-leaf)' : 'var(--color-line)' }} title={windowDays.has(d.date) ? 'Spray window' : 'No spray window'} />
           )}
-        </div>
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }
 
