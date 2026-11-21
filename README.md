@@ -47,15 +47,20 @@ npm run build && npm start
 
 ### Hosting
 
-- **Node host (recommended)** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. Everything works, including the AI advisor. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org` and `nominatim.openstreetmap.org`.
-- **Static host** — Vercel/Netlify static builds, GitHub Pages, `vite preview`: deploy `dist/`. The app notices there is no server behind `/api` and fetches weather, climate, soil and place names straight from the public APIs in the browser. Only the Ask tab is unavailable, and it says so.
+- **Vercel** — import the repo with the Vite preset. The static app is built from `dist/`, and `api/[route].ts` becomes a serverless function for every `/api/*` route. To turn on the AI advisor, add `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) under *Project → Settings → Environment Variables*, then redeploy.
+- **Any Node host** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org`, `nominatim.openstreetmap.org` and `generativelanguage.googleapis.com`.
+- **Static only** — GitHub Pages, Netlify without functions, `vite preview`: deploy `dist/`. The app notices there is no server behind `/api` and fetches weather, climate, soil and place names straight from the public APIs in the browser. Only the Ask tab is unavailable, and it says so.
+
+Express (`server.ts`) and the Vercel function share one implementation in `server/handlers.ts`.
 
 Map tiles always load in the browser from `server.arcgisonline.com`.
 
 ## Layout
 
 ```
-server.ts            Express: /api/weather, /climate, /soil, /place, /ask, /diagnose, /health
+server.ts            Express server (local dev, Node hosts)
+api/[route].ts       Vercel serverless function
+server/handlers.ts   All /api routes: weather, climate, soil, place, ask, diagnose, health
 server/sources.ts    Upstream fetch, trim (~15 KB weather bundle), cache per location
 server/ai.ts         Gemini prompts with JSON schemas; no fallback answers
 src/lib/crops.ts     Crop knowledge base

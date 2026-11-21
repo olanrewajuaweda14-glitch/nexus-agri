@@ -2,10 +2,10 @@
  * Server-side data access: the shared adapters plus a per-location cache, so
  * repeated requests for the same farm don't hit the upstream APIs.
  */
-import type { ClimateBundle, SoilBundle, WeatherBundle } from '../src/lib/types';
-import { fetchClimateDirect, fetchPlaceDirect, fetchSoilDirect, fetchWeatherDirect } from '../src/lib/data/sources';
+import type { ClimateBundle, SoilBundle, WeatherBundle } from '../src/lib/types.js';
+import { fetchClimateDirect, fetchPlaceDirect, fetchSoilDirect, fetchWeatherDirect } from '../src/lib/data/sources.js';
 
-export { UpstreamError, normaliseSoil, normaliseWeather, summariseClimate } from '../src/lib/data/sources';
+export { UpstreamError, normaliseSoil, normaliseWeather, summariseClimate } from '../src/lib/data/sources.js';
 
 const UA = { 'User-Agent': 'nexus-agri/2.0 (farm decision support)' };
 
