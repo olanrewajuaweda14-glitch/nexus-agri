@@ -18,7 +18,7 @@ Crops: maize, rice, sorghum, soybean, cowpea, tomato, cassava — early, medium 
 
 ## What it deliberately does not do
 
-- **No invented data.** If a source is down the screen says so and shows the last saved copy with its age. There is no "simulated" AI fallback: if Gemini isn't configured, the advisor says it is off and everything else keeps working.
+- **No invented data.** If a source is down the screen says so and shows the last saved copy with its age. With no forecast at all, calendar jobs still appear, with plain field checks in place of weather timing. There is no "simulated" AI fallback: if Gemini isn't configured, the advisor says it is off and everything else keeps working.
 - **No fake satellite or market feeds.** Free, keyless NDVI and Nigerian market-price APIs don't exist; showing made-up numbers labelled "live" would mislead farmers. Prices are entered by the user.
 - **No accounts.** Farms, ticks and budgets live in the browser's storage on the device.
 
@@ -45,7 +45,12 @@ npm run lint            # strict TypeScript
 npm run build && npm start
 ```
 
-The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org` and `nominatim.openstreetmap.org`. The browser loads map tiles from `server.arcgisonline.com`.
+### Hosting
+
+- **Node host (recommended)** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. Everything works, including the AI advisor. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org` and `nominatim.openstreetmap.org`.
+- **Static host** — Vercel/Netlify static builds, GitHub Pages, `vite preview`: deploy `dist/`. The app notices there is no server behind `/api` and fetches weather, climate, soil and place names straight from the public APIs in the browser. Only the Ask tab is unavailable, and it says so.
+
+Map tiles always load in the browser from `server.arcgisonline.com`.
 
 ## Layout
 

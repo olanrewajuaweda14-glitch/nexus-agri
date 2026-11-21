@@ -1,6 +1,6 @@
 import type { Insights } from '../lib/useInsights';
 import { farmNow } from '../lib/useInsights';
-import { weekday } from '../lib/dates';
+import { shortDate, weekday } from '../lib/dates';
 import { ago, wmo } from '../lib/format';
 import { formatWindow } from '../lib/engine/plan';
 import { mainBlocker } from '../lib/engine/spray';
@@ -8,12 +8,16 @@ import { MonthlyRain, SprayStrip } from '../components/charts';
 import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui';
 
 export function Weather({ ins }: { ins: Insights }) {
-  const { weather, climate, derived } = ins;
-  const w = weather.data;
+  const { weather, climate, derived, today } = ins;
+  const w = ins.forecast;
 
   if (!w) {
-    return weather.status === 'error' ? (
-      <ErrorNote title="Weather unavailable" detail={weather.error} onRetry={ins.refresh} />
+    return weather.status === 'error' || weather.data ? (
+      <ErrorNote
+        title={weather.data ? 'Saved forecast is out of date' : 'Weather unavailable'}
+        detail={weather.data ? 'The forecast saved on this phone no longer covers today. Refresh when you have signal.' : weather.error}
+        onRetry={ins.refresh}
+      />
     ) : (
       <div className="space-y-4">
         <Skeleton className="h-24" />
@@ -25,11 +29,11 @@ export function Weather({ ins }: { ins: Insights }) {
 
   const nowIso = farmNow(w);
   const hi = Math.max(0, w.hourly.time.findIndex((t) => t >= nowIso.slice(0, 13)));
-  const ti = w.daily.time.indexOf(w.today);
+  const ti = Math.max(0, w.daily.time.indexOf(today));
   const days = w.daily.time.slice(ti, ti + 8).map((d, k) => ({ d, i: ti + k }));
-  const spray = derived?.spray;
+  const spray = derived.spray;
   const blocker = spray ? mainBlocker(spray.hours) : null;
-  const month = Number(w.today.slice(5, 7)) - 1;
+  const month = Number(today.slice(5, 7)) - 1;
 
   return (
     <div className="space-y-8">
@@ -49,7 +53,7 @@ export function Weather({ ins }: { ins: Insights }) {
             <p className="text-[15px]">
               {spray.next ? (
                 <>
-                  Best next window: <b className="font-semibold">{formatWindow(spray.next, w.today)}</b>
+                  Best next window: <b className="font-semibold">{formatWindow(spray.next, today)}</b>
                   {spray.windows.length > 1 && <span className="text-ink-2"> · {spray.windows.length - 1} more in the next 3 days</span>}
                 </>
               ) : (
@@ -103,7 +107,7 @@ export function Weather({ ins }: { ins: Insights }) {
         {climate.data ? (
           <div className="card space-y-5 p-4">
             <div className="grid grid-cols-2 gap-6">
-              <Stat label="Last 30 days" value={climate.data.last30Mm} unit="mm" tone="rain" />
+              <Stat label={`30 days to ${shortDate(climate.data.windowEnd)}`} value={climate.data.last30Mm} unit="mm" tone="rain" />
               <Stat
                 label={`${climate.data.years.length}-year average`}
                 value={climate.data.last30NormalMm}
@@ -115,7 +119,7 @@ export function Weather({ ins }: { ins: Insights }) {
               <div className="eyebrow mb-2">Average rain by month, mm ({climate.data.years[0]}–{climate.data.years[climate.data.years.length - 1]})</div>
               <MonthlyRain normals={climate.data.monthlyNormalMm} month={month} />
             </div>
-            <p className="text-xs text-ink-3">30-day window ends {climate.data.windowEnd} — reanalysis data runs about 5 days behind.</p>
+            <p className="text-xs text-ink-3">Reanalysis data runs about 5 days behind, so the window ends {shortDate(climate.data.windowEnd)}.</p>
           </div>
         ) : climate.status === 'error' ? (
           <ErrorNote title="Historical rainfall unavailable" detail={climate.error} />

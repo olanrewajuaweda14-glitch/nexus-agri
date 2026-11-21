@@ -1,6 +1,6 @@
 // Nexus Agri service worker: keeps the app shell available offline.
 // Data offline is handled by the app itself (last good copy in localStorage).
-const CACHE = 'nexus-agri-v2';
+const CACHE = 'nexus-agri-v3';
 const SHELL = ['/', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', (e) => {
@@ -32,8 +32,9 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // Hashed assets, fonts and map tiles: cache first.
-  const cacheable = url.origin === location.origin || /fonts\.(googleapis|gstatic)\.com|arcgisonline\.com/.test(url.host);
+  // Hashed app assets and fonts: cache first. Map tiles are left to the browser's own
+  // HTTP cache — caching every tile here would grow storage without limit.
+  const cacheable = url.origin === location.origin || /fonts\.(googleapis|gstatic)\.com/.test(url.host);
   if (!cacheable) return;
   e.respondWith(
     caches.match(req).then(

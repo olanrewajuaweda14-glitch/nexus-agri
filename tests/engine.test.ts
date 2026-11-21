@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CROPS, scaledCrop } from '../src/lib/crops';
-import { addDays, daysBetween } from '../src/lib/dates';
+import { addDays, daysBetween, hourLabel } from '../src/lib/dates';
 import { kcForDap, stageFor } from '../src/lib/engine/stage';
 import { interpretSoil, limeRequirement, textureClass, waterLimits } from '../src/lib/engine/soil';
 import { waterBalance } from '../src/lib/engine/water';
 import { sprayOutlook } from '../src/lib/engine/spray';
-import { buildPlan, key } from '../src/lib/engine/plan';
+import { buildPlan, doseForFarm, key, seasonAhead } from '../src/lib/engine/plan';
 import { economics, sensitivity } from '../src/lib/engine/economics';
 import type { Farm } from '../src/lib/types';
 import { makeWeather } from './fixtures';
@@ -21,7 +21,7 @@ function plan(farm: Farm, weather = makeWeather(TODAY), done = new Set<string>()
   const stage = stageFor(crop, farm.plantingDate, weather.today);
   const water = waterBalance(weather.daily, weather.today, crop, farm.plantingDate, LOAM);
   const spray = sprayOutlook(weather.hourly, `${weather.today}T06:00`);
-  return buildPlan({ farm, crop, stage, weather, water, spray, soilFindings: [], climate: null, done });
+  return buildPlan({ farm, crop, stage, today: weather.today, weather, water, spray, soilFindings: [], climate: null, done });
 }
 
 describe('dates', () => {
@@ -210,5 +210,62 @@ describe('economics', () => {
   });
   it('sensitivity centre equals the base case', () => {
     expect(sensitivity(b, 2)[2][2]).toBe(economics(b, 2).profit);
+  });
+});
+
+describe('plan without a forecast', () => {
+  it('still lists calendar jobs, with honest guidance instead of timing', () => {
+    const farm = farmAt(32);
+    const crop = scaledCrop('maize', 'medium');
+    const stage = stageFor(crop, farm.plantingDate, TODAY);
+    const p = buildPlan({ farm, crop, stage, today: TODAY, weather: null, water: null, spray: null, soilFindings: [], climate: null, done: new Set() });
+    const td = p.find((a) => a.id === 'topdress')!;
+    expect(td).toBeDefined();
+    expect(td.why.join(' ')).toMatch(/No forecast loaded/);
+    expect(p.some((a) => a.kind === 'water' || a.kind === 'drainage')).toBe(false);
+  });
+  it('gives an onset rule of thumb before planting', () => {
+    const farm = farmAt(-3);
+    const crop = scaledCrop('maize', 'medium');
+    const p = buildPlan({ farm, crop, stage: stageFor(crop, farm.plantingDate, TODAY), today: TODAY, weather: null, water: null, spray: null, soilFindings: [], climate: null, done: new Set() });
+    expect(p[0].id).toBe('onset');
+    expect(p[0].why[0]).toMatch(/20 mm/);
+  });
+});
+
+describe('fertilizer amounts for the farm', () => {
+  it('converts kg/ha to the farm total in 50 kg bags, rounded up to a quarter', () => {
+    expect(doseForFarm({ product: 'urea', kgPerHa: 130 }, 2)).toBe('For your 2 ha: 260 kg of urea — 5¼ bags (50 kg).');
+    expect(doseForFarm({ product: 'NPK 15-15-15', kgPerHa: 400 }, 0.5)).toBe('For your 0.5 ha: 200 kg of NPK 15-15-15 — 4 bags (50 kg).');
+    expect(doseForFarm({ product: 'urea', kgPerHa: 65 }, 0.3)).toBe('For your 0.3 ha: 20 kg of urea — ½ bag (50 kg).');
+  });
+  it('appends the farm amount to fertilizer jobs', () => {
+    const td = plan(farmAt(32)).find((a) => a.id === 'topdress')!;
+    expect(td.how).toMatch(/For your 2 ha: 260 kg of urea/);
+  });
+  it('every fertilizer task carries a dose', () => {
+    for (const c of Object.values(CROPS)) for (const t of c.tasks) if (t.kind === 'fertilizer') expect(t.dose, `${c.id}/${t.id}`).toBeDefined();
+  });
+});
+
+describe('season ahead', () => {
+  it('lists later jobs in date order and skips done ones', () => {
+    const farm = farmAt(10);
+    const crop = scaledCrop('maize', 'medium');
+    const ahead = seasonAhead(farm, crop, TODAY, new Set([key(farm, 'weed2')]));
+    expect(ahead.map((t) => t.id)).toEqual(['topdress', 'harvest']);
+    expect(ahead[0].start).toBe(addDays(farm.plantingDate, 28));
+  });
+});
+
+describe('edge cases', () => {
+  it('labels midnight correctly when a window ends at 23:00', () => {
+    expect(hourLabel('2026-11-21T24:00')).toBe('midnight');
+    expect(hourLabel('2026-11-21T00:00')).toBe('midnight');
+    expect(hourLabel('2026-11-21T13:00')).toBe('1 pm');
+  });
+  it('returns no spray hours when the forecast is entirely in the past', () => {
+    const w = makeWeather(TODAY);
+    expect(sprayOutlook(w.hourly, `${addDays(TODAY, 30)}T08:00`).hours).toHaveLength(0);
   });
 });

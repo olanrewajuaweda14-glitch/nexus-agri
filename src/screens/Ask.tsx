@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Loader2, Send, Trash2 } from 'lucide-react';
 import type { Farm } from '../lib/types';
 import type { Insights } from '../lib/useInsights';
-import { api, ApiError } from '../lib/data/api';
+import { aiStatus, api, ApiError, type AiStatus } from '../lib/data/api';
 import { KEYS, load, save } from '../lib/storage';
 import { Segmented, SourceTag } from '../components/ui';
 
@@ -28,6 +28,32 @@ interface Diagnosis {
   urgent: boolean;
 }
 
+const arr = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+
+/** Models occasionally drop or mistype fields; never render undefined. */
+function cleanReply(r: any): AskReply | null {
+  if (!r || typeof r.answer !== 'string' || !r.answer.trim()) return null;
+  return {
+    answer: r.answer,
+    steps: arr(r.steps),
+    basedOn: arr(r.basedOn),
+    confidence: ['high', 'medium', 'low'].includes(r.confidence) ? r.confidence : 'medium',
+    missing: typeof r.missing === 'string' ? r.missing : '',
+  };
+}
+
+function cleanDiagnosis(r: any): Diagnosis | null {
+  if (!r || typeof r !== 'object') return null;
+  if (r.usable === false) return { usable: false, problemIfUnusable: String(r.problemIfUnusable ?? ''), summary: '', findings: [], confirmBy: [], actions: [], urgent: false };
+  if (typeof r.summary !== 'string') return null;
+  const findings = Array.isArray(r.findings)
+    ? r.findings
+        .filter((f: any) => f && typeof f.name === 'string')
+        .map((f: any) => ({ name: f.name, type: String(f.type ?? ''), likelihood: ['likely', 'possible', 'unlikely'].includes(f.likelihood) ? f.likelihood : 'possible', evidence: String(f.evidence ?? '') }))
+    : [];
+  return { usable: true, problemIfUnusable: '', summary: r.summary, findings, confirmBy: arr(r.confirmBy), actions: arr(r.actions), urgent: r.urgent === true };
+}
+
 const LANGS = [
   { value: 'en', label: 'English' },
   { value: 'pcm', label: 'Pidgin' },
@@ -39,11 +65,12 @@ const LANGS = [
 export function Ask({ farm, ins }: { farm: Farm; ins: Insights }) {
   const [mode, setMode] = useState<'ask' | 'photo'>('ask');
   const [lang, setLang] = useState<string>(() => load(KEYS.lang, 'en'));
-  const [health, setHealth] = useState<{ ai: boolean } | null>(null);
+  const [status, setStatus] = useState<AiStatus | null>(null);
 
   useEffect(() => {
-    api<{ ai: boolean }>('/api/health').then(setHealth).catch(() => setHealth({ ai: false }));
+    aiStatus().then(setStatus);
   }, []);
+  const off = status === 'no-key' || status === 'no-server';
   useEffect(() => { save(KEYS.lang, lang); }, [lang]);
 
   return (
@@ -63,34 +90,40 @@ export function Ask({ farm, ins }: { farm: Farm; ins: Insights }) {
         </select>
       </label>
 
-      {health && !health.ai && (
+      {off && (
         <div className="card p-4 text-[15px]">
-          <p className="font-semibold">The AI advisor is switched off on this server.</p>
+          <p className="font-semibold">{status === 'no-server' ? 'The AI advisor needs the Nexus Agri server.' : 'The AI advisor is switched off on this server.'}</p>
           <p className="mt-1 text-ink-2">
-            Everything else in the app — the weekly plan, spray windows, water balance, soil and costs — is calculated without AI and keeps working.
-            To turn the advisor on, set <code className="num rounded bg-paper px-1">GEMINI_API_KEY</code> on the server.
+            Everything else — the weekly plan, spray windows, water balance, soil and costs — is calculated on your phone without AI and keeps working.{' '}
+            {status === 'no-server' ? (
+              <>This copy is running as static files only. Run it with <code className="num rounded bg-paper px-1">npm start</code> (or any Node host) and set <code className="num rounded bg-paper px-1">GEMINI_API_KEY</code>.</>
+            ) : (
+              <>To turn the advisor on, set <code className="num rounded bg-paper px-1">GEMINI_API_KEY</code> on the server and restart it.</>
+            )}
           </p>
         </div>
       )}
+      {status === 'unreachable' && <p className="rounded-lg bg-sun-soft px-3 py-2 text-sm">Can't reach the server right now — questions will fail until the connection is back.</p>}
 
-      {mode === 'ask' ? <Chat farm={farm} ins={ins} lang={lang} disabled={health?.ai === false} /> : <Photo farm={farm} ins={ins} lang={lang} disabled={health?.ai === false} />}
+      {mode === 'ask' ? <Chat farm={farm} ins={ins} lang={lang} disabled={off} /> : <Photo farm={farm} ins={ins} lang={lang} disabled={off} />}
     </div>
   );
 }
 
 /** Compact, factual context for the model — numbers the app computed, nothing invented. */
 function buildContext(farm: Farm, ins: Insights) {
-  const w = ins.weather.data;
+  const w = ins.forecast;
   const d = ins.derived;
-  const ti = w ? w.daily.time.indexOf(w.today) : -1;
+  const ti = w ? w.daily.time.indexOf(ins.today) : -1;
   return {
     farm: { name: farm.name, place: farm.placeName, crop: ins.crop.name, sizeHa: farm.sizeHa, water: farm.water, planted: farm.plantingDate, variety: `${farm.maturity} maturity` },
     today: ins.today,
     stage: { dap: ins.stage.dap, name: ins.stage.name, next: ins.stage.nextName, daysToNext: ins.stage.daysToNext },
-    plan: d?.plan.map((a) => ({ priority: a.priority, title: a.title, when: a.when, why: a.why })),
-    water: d && { availablePct: Math.round(d.water.availableNow * 100), stressed: d.water.stressedNow, stressDate: d.water.stressDate, rainNext7mm: d.water.rainNext7, cropUseNext7mm: d.water.etcNext7, rainLast7mm: d.water.rainLast7 },
+    plan: d.plan.map((a) => ({ priority: a.priority, title: a.title, when: a.when, why: a.why })),
+    water: d.water && { availablePct: Math.round(d.water.availableNow * 100), stressed: d.water.stressedNow, stressDate: d.water.stressDate, rainNext7mm: d.water.rainNext7, cropUseNext7mm: d.water.etcNext7, rainLast7mm: d.water.rainLast7 },
+    forecastAvailable: !!w,
     forecast: w && ti >= 0 ? w.daily.time.slice(ti, ti + 8).map((date, k) => ({ date, rainMm: w.daily.precip[ti + k], chance: w.daily.precipProb[ti + k], tMax: w.daily.tMax[ti + k], tMin: w.daily.tMin[ti + k] })) : null,
-    sprayWindows: d?.spray.windows.slice(0, 3),
+    sprayWindows: d.spray?.windows.slice(0, 3) ?? null,
     soil: { ...ins.soilSummary, source: farm.labSoil ? 'lab + SoilGrids' : 'SoilGrids estimate', findings: ins.findings.map((f) => f.title) },
     climate: ins.climate.data && { last30Mm: ins.climate.data.last30Mm, normal30Mm: ins.climate.data.last30NormalMm },
   };
@@ -103,7 +136,6 @@ function Chat({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: 
   const [err, setErr] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setTurns(load(KEYS.chat(farm.id), [])); }, [farm.id]);
   useEffect(() => { save(KEYS.chat(farm.id), turns.slice(-20)); }, [turns, farm.id]);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [turns.length, busy]);
 
@@ -122,7 +154,9 @@ function Chat({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: 
     setBusy(true);
     setErr(null);
     try {
-      const reply = await api<AskReply>('/api/ask', { method: 'POST', body: JSON.stringify({ question: text, language: lang, context: buildContext(farm, ins), history }), timeoutMs: 60_000 });
+      const raw = await api<unknown>('/api/ask', { method: 'POST', body: JSON.stringify({ question: text, language: lang, context: buildContext(farm, ins), history }), timeoutMs: 60_000 });
+      const reply = cleanReply(raw);
+      if (!reply) throw new ApiError('bad_reply', 'The advisor returned an empty answer. Please ask again.');
       setTurns((t) => [...t, { role: 'model', text: reply.answer, reply }]);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Something went wrong.');
@@ -151,7 +185,7 @@ function Chat({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: 
           t.role === 'user' ? (
             <div key={i} className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-paper">{t.text}</div>
           ) : (
-            <Reply key={i} r={t.reply!} />
+            t.reply ? <Reply key={i} r={t.reply} /> : <div key={i} className="card max-w-[95%] p-4 text-[15px]">{t.text}</div>
           ),
         )}
         {busy && (
@@ -241,14 +275,17 @@ function Photo({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang:
     if (!img) return;
     setBusy(true);
     setErr(null);
-    const w = ins.derived?.water;
+    const w = ins.derived.water;
     const weatherNote = w ? `${w.rainLast7} mm rain in the last 7 days, root-zone water ${Math.round(w.availableNow * 100)}%` : 'unknown';
     try {
-      setRes(await api<Diagnosis>('/api/diagnose', {
+      const raw = await api<unknown>('/api/diagnose', {
         method: 'POST',
         body: JSON.stringify({ imageBase64: img.base64, mimeType: 'image/jpeg', crop: ins.crop.name, stage: `${ins.stage.name}, day ${ins.stage.dap}`, notes, language: lang, weatherNote }),
         timeoutMs: 90_000,
-      }));
+      });
+      const d = cleanDiagnosis(raw);
+      if (!d) throw new ApiError('bad_reply', 'The photo check returned an unreadable answer. Please try again.');
+      setRes(d);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Something went wrong.');
     } finally {

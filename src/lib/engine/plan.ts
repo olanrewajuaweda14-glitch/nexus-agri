@@ -10,9 +10,12 @@ export interface PlanInput {
   farm: Farm;
   crop: CropDef;
   stage: StageInfo;
-  weather: WeatherBundle;
-  water: WaterBalance;
-  spray: SprayOutlook;
+  /** Farm-local date. */
+  today: string;
+  /** Weather-derived inputs are null when no forecast is available (offline, first load failed). */
+  weather: WeatherBundle | null;
+  water: WaterBalance | null;
+  spray: SprayOutlook | null;
   soilFindings: SoilFinding[];
   climate: ClimateBundle | null;
   /** Keys of completed checkable actions. */
@@ -36,8 +39,9 @@ export function formatWindow(w: SprayWindow, today: string) {
 }
 
 /** Forecast days from today forward (today included). */
-function forecastDays(weather: WeatherBundle) {
-  const { daily, today } = weather;
+function forecastDays(weather: WeatherBundle | null, today: string) {
+  if (!weather) return [];
+  const { daily } = weather;
   const out: { date: string; rain: number; prob: number; tMax: number }[] = [];
   daily.time.forEach((date, i) => {
     if (date >= today) out.push({ date, rain: daily.precip[i] ?? 0, prob: daily.precipProb[i] ?? 0, tMax: daily.tMax[i] ?? 0 });
@@ -49,10 +53,16 @@ function forecastDays(weather: WeatherBundle) {
  * Best day in the next week to put fertilizer down: soil moist, no heavy rain
  * that day or the next (runoff and leaching), and preferably right after rain.
  */
-function fertilizerTiming(input: PlanInput, task: CropTask, windowEndDate: string) {
-  const { weather, water } = input;
-  const today = weather.today;
-  const fc = forecastDays(weather).filter((d) => d.date <= windowEndDate || d.date <= addDays(today, 2));
+function fertilizerTiming(input: PlanInput, _task: CropTask, windowEndDate: string) {
+  const { weather, water, today } = input;
+  if (!weather || !water) {
+    return {
+      when: 'check soil and forecast first',
+      why: ['No forecast loaded. Apply only when the topsoil is moist and no heavy rain is expected for a day — rain straight after application washes fertilizer off.'],
+      sources: [] as string[],
+    };
+  }
+  const fc = forecastDays(weather, today).filter((d) => d.date <= windowEndDate || d.date <= addDays(today, 2));
   const dayWater = new Map(water.days.map((d) => [d.date, d]));
   const heavy = (d: { rain: number; prob: number }) => d.rain >= HEAVY_RAIN_MM && d.prob >= 40;
 
@@ -93,13 +103,16 @@ function fertilizerTiming(input: PlanInput, task: CropTask, windowEndDate: strin
 }
 
 function sprayTiming(input: PlanInput) {
-  const { spray, weather } = input;
+  const { spray, today } = input;
+  if (!spray) {
+    return { when: 'calm, dry morning', why: ['No forecast loaded. Spray in daylight with a light breeze (3–15 km/h), below 30 °C, and only if no rain is expected for 4 hours.'] };
+  }
   if (spray.next) {
-    const extra = spray.windows.slice(1, 3).map((w) => formatWindow(w, weather.today));
+    const extra = spray.windows.slice(1, 3).map((w) => formatWindow(w, today));
     return {
-      when: formatWindow(spray.next, weather.today),
+      when: formatWindow(spray.next, today),
       why: [
-        `Next safe spray window: ${formatWindow(spray.next, weather.today)} — wind 3–15 km/h, no rain for 4 h after, below 30 °C.`,
+        `Next safe spray window: ${formatWindow(spray.next, today)} — wind 3–15 km/h, no rain for 4 h after, below 30 °C.`,
         ...(extra.length ? [`Backup: ${extra.join('; ')}.`] : []),
       ],
     };
@@ -112,11 +125,10 @@ function sprayTiming(input: PlanInput) {
 }
 
 export function buildPlan(input: PlanInput): PlanAction[] {
-  const { farm, crop, stage, weather, water, soilFindings, climate, done } = input;
-  const today = weather.today;
+  const { farm, crop, stage, weather, water, soilFindings, climate, done, today } = input;
   const dap = stage.dap;
   const actions: PlanAction[] = [];
-  const fc = forecastDays(weather);
+  const fc = forecastDays(weather, today);
   const dapDate = (n: number) => addDays(farm.plantingDate, n);
 
   /* ---------- Pre-planting ---------- */
@@ -125,6 +137,13 @@ export function buildPlan(input: PlanInput): PlanAction[] {
     if (phIssue && dap <= -28) {
       actions.push({ id: 'lime', kind: 'soil', priority: 'week', title: 'Lime the field before planting', when: `by ${relativeDay(addDays(farm.plantingDate, -28), today)}`,
         why: [phIssue.title + '.', phIssue.detail], sources: [SRC.soil], checkable: true });
+    }
+    if (!water) {
+      actions.push({ id: 'onset', kind: 'plant', priority: dap >= -7 ? 'now' : 'watch', checkable: false,
+        title: 'Check the rains before planting', when: `planned for ${relativeDay(farm.plantingDate, today)}`,
+        why: ['No forecast loaded. Plant once about 20 mm has fallen over 2–3 days and the soil is moist to a hand’s depth — a false start followed by a dry spell can kill the seedlings.'],
+        sources: ['Onset rule: ≥20 mm in 3 days, no 7-day dry spell'] });
+      return sortPlan(actions);
     }
     const rainPast3 = water.days.slice(Math.max(0, water.todayIndex - 2), water.todayIndex + 1).reduce((s, d) => s + d.rain, 0);
     const dryRun = longestDryRun(fc.map((d) => d.rain * (d.prob / 100)));
@@ -205,8 +224,11 @@ export function buildPlan(input: PlanInput): PlanAction[] {
       if (wet.length) why.push(`Rain due ${wet.map((d) => relativeDay(d.date, today)).join(', ')} — harvest in the dry days around it and get the crop under cover.`);
     }
 
-    actions.push({ id: task.id, kind: task.kind, priority, title: task.title, when, why, how: task.how, sources, checkable: true, overdue });
+    const how = task.dose ? `${task.how} ${doseForFarm(task.dose, farm.sizeHa)}` : task.how;
+    actions.push({ id: task.id, kind: task.kind, priority, title: task.title, when, why, how, sources, checkable: true, overdue });
   }
+
+  if (!weather || !water) return sortPlan(actions);
 
   /* ---------- Water ---------- */
   const sensitive = crop.heat && stage.index === crop.heat.stageIndex ? ' during flowering — the stage where water stress costs the most yield' : '';
@@ -271,7 +293,7 @@ export function buildPlan(input: PlanInput): PlanAction[] {
 
   /* ---------- Fungal disease conditions ---------- */
   if (stage.status === 'growing' && dap > 14) {
-    const run = longestHumidRun(weather);
+    const run = longestHumidRun(weather, today);
     if (run.hours >= 10) {
       actions.push({ id: 'disease', kind: 'scout', priority: run.hours >= 16 ? 'week' : 'watch', checkable: false,
         title: `Damp conditions favour ${crop.humidDiseases}`, when: run.future ? 'next 2 days' : 'last 2 days',
@@ -286,13 +308,40 @@ export function buildPlan(input: PlanInput): PlanAction[] {
     const ratio = climate.last30Mm / climate.last30NormalMm;
     if (ratio < 0.6 || ratio > 1.5) {
       actions.push({ id: 'season', kind: 'other', priority: 'watch', checkable: false,
-        title: ratio < 0.6 ? 'Drier month than usual' : 'Wetter month than usual', when: 'last 30 days',
+        title: ratio < 0.6 ? 'Drier month than usual' : 'Wetter month than usual', when: `30 days to ${relativeDay(climate.windowEnd, today)}`,
         why: [`${Math.round(climate.last30Mm)} mm in the last 30 days, against a ${climate.years.length}-year average of ${Math.round(climate.last30NormalMm)} mm for the same dates (${Math.round(ratio * 100)}%).`],
         sources: [SRC.climate] });
     }
   }
 
   return sortPlan(actions);
+}
+
+/** "For your 2 ha: 260 kg of urea — 5¼ bags (50 kg)." Bags rounded up to the nearest quarter. */
+export function doseForFarm(dose: { product: string; kgPerHa: number }, sizeHa: number) {
+  const kg = dose.kgPerHa * sizeHa;
+  const bags = Math.ceil((kg / 50) * 4) / 4;
+  const whole = Math.floor(bags);
+  const frac = ['', '¼', '½', '¾'][Math.round((bags - whole) * 4)];
+  const bagText = `${whole > 0 ? whole : ''}${frac || (whole === 0 ? '0' : '')}`;
+  return `For your ${sizeHa} ha: ${Math.round(kg).toLocaleString('en-NG')} kg of ${dose.product} — ${bagText} bag${bags > 1 ? 's' : ''} (50 kg).`;
+}
+
+export interface UpcomingTask {
+  id: string;
+  title: string;
+  kind: CropTask['kind'];
+  start: string;
+  end: string;
+}
+
+/** Field operations after the coming week, for a season-at-a-glance list. */
+export function seasonAhead(farm: Farm, crop: CropDef, today: string, done: Set<string>): UpcomingTask[] {
+  const dap = daysBetween(farm.plantingDate, today);
+  return crop.tasks
+    .filter((t) => !t.repeatDays && t.fromDap - dap > 7 && !done.has(key(farm, t.id)))
+    .map((t) => ({ id: t.id, title: t.title, kind: t.kind, start: addDays(farm.plantingDate, t.fromDap), end: addDays(farm.plantingDate, t.toDap) }))
+    .sort((a, b) => a.start.localeCompare(b.start));
 }
 
 export const key = (farm: Farm, id: string) => `${farm.id}:${farm.plantingDate}:${id}`;
@@ -312,9 +361,9 @@ function longestDryRun(rain: number[]) {
   return best;
 }
 
-function longestHumidRun(weather: WeatherBundle) {
+function longestHumidRun(weather: WeatherBundle, today: string) {
   const { hourly } = weather;
-  const nowIdx = Math.max(0, hourly.time.findIndex((t) => t.slice(0, 10) >= weather.today));
+  const nowIdx = Math.max(0, hourly.time.findIndex((t) => t.slice(0, 10) >= today));
   const from = Math.max(0, nowIdx - 48);
   const to = Math.min(hourly.time.length, nowIdx + 48);
   let best = 0;

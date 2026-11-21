@@ -30,6 +30,8 @@ export interface CropTask {
   needsSprayWindow?: boolean;
   /** Fertilizer: soil should be moist and no heavy rain within 24 h. */
   needsMoistSoil?: boolean;
+  /** Fertilizer product and rate, used to work out the amount for the farm's size. */
+  dose?: { product: string; kgPerHa: number };
 }
 
 export interface CropDef {
@@ -87,13 +89,13 @@ export const CROPS: Record<CropId, CropDef> = {
       { name: 'Maturity & dry-down', startDap: 105, note: 'Black layer forms; grain dries in the field.' },
     ],
     tasks: [
-      { id: 'basal', kind: 'fertilizer', title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 14, needsMoistSoil: true,
+      { id: 'basal', kind: 'fertilizer', dose: { product: 'NPK 15-15-15', kgPerHa: 400 }, title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 14, needsMoistSoil: true,
         how: '8 bags (400 kg) per hectare, banded 5 cm beside and below the seed row. Supplies about 60 kg each of N, P₂O₅ and K₂O.' },
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 14, toDap: 24,
         how: 'Hoe or apply a post-emergence herbicide. Keep the crop weed-free for the first 6 weeks.' },
       { id: 'faw', kind: 'scout', title: 'Scout for fall armyworm', fromDap: 7, toDap: 55, repeatDays: 7,
         how: 'Walk a W-pattern and check 20 plants in each of 5 spots. Act if more than 1 in 5 plants show fresh window-pane feeding or wet frass in the whorl.' },
-      { id: 'topdress', kind: 'fertilizer', title: 'Top-dress with urea', fromDap: 28, toDap: 42, needsMoistSoil: true,
+      { id: 'topdress', kind: 'fertilizer', dose: { product: 'urea', kgPerHa: 130 }, title: 'Top-dress with urea', fromDap: 28, toDap: 42, needsMoistSoil: true,
         how: '2½ bags (130 kg) per hectare (~60 kg N), placed 5–8 cm from the plant and covered with soil.' },
       { id: 'weed2', kind: 'weed', title: 'Second weeding and earthing-up', fromDap: 35, toDap: 48,
         how: 'Earth up soil around the stems to support roots before the plants get tall.' },
@@ -125,15 +127,15 @@ export const CROPS: Record<CropId, CropDef> = {
       { name: 'Maturity', startDap: 110, note: '80–85% of grains straw-coloured.' },
     ],
     tasks: [
-      { id: 'basal', kind: 'fertilizer', title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 10, needsMoistSoil: true,
+      { id: 'basal', kind: 'fertilizer', dose: { product: 'NPK 15-15-15', kgPerHa: 200 }, title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 10, needsMoistSoil: true,
         how: '4 bags (200 kg) per hectare, incorporated at the final puddling or within 10 days of sowing.' },
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 14, toDap: 24, how: 'Hand-pull or use a selective post-emergence herbicide.' },
-      { id: 'urea1', kind: 'fertilizer', title: 'First urea split (tillering)', fromDap: 21, toDap: 30, needsMoistSoil: true,
+      { id: 'urea1', kind: 'fertilizer', dose: { product: 'urea', kgPerHa: 65 }, title: 'First urea split (tillering)', fromDap: 21, toDap: 30, needsMoistSoil: true,
         how: '1¼ bags (65 kg) urea per hectare. In paddies, drain to a thin water film, broadcast, then re-flood after 2 days.' },
       { id: 'scout', kind: 'scout', title: 'Scout for stem borer and blast', fromDap: 14, toDap: 90, repeatDays: 7,
         how: 'Look for dead hearts (dry central shoot) and spindle-shaped grey lesions on leaves.' },
       { id: 'weed2', kind: 'weed', title: 'Second weeding', fromDap: 35, toDap: 45, how: 'Last weeding before the canopy closes.' },
-      { id: 'urea2', kind: 'fertilizer', title: 'Second urea split (panicle initiation)', fromDap: 45, toDap: 55, needsMoistSoil: true,
+      { id: 'urea2', kind: 'fertilizer', dose: { product: 'urea', kgPerHa: 65 }, title: 'Second urea split (panicle initiation)', fromDap: 45, toDap: 55, needsMoistSoil: true,
         how: '1¼ bags (65 kg) urea per hectare.' },
       { id: 'birds', kind: 'other', title: 'Bird scaring', fromDap: 80, toDap: 110, how: 'Quelea and weaver birds can take a large share of the crop at milk stage. Guard mornings and evenings.' },
       { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 128, how: 'Cut when 80–85% of grains are straw-coloured. Thresh and dry to 14% moisture within 24 h to protect milling quality.' },
@@ -163,11 +165,11 @@ export const CROPS: Record<CropId, CropDef> = {
       { name: 'Maturity', startDap: 110, note: 'Black spot at the base of the grain.' },
     ],
     tasks: [
-      { id: 'basal', kind: 'fertilizer', title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 14, needsMoistSoil: true,
+      { id: 'basal', kind: 'fertilizer', dose: { product: 'NPK 15-15-15', kgPerHa: 200 }, title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 14, needsMoistSoil: true,
         how: '4 bags (200 kg) per hectare, banded beside the row.' },
       { id: 'thin', kind: 'other', title: 'Thin to 2 plants per stand', fromDap: 14, toDap: 21, how: 'Do it on a moist day so pulled seedlings come out cleanly.' },
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 14, toDap: 24, how: 'Weed early — sorghum seedlings are weak competitors.' },
-      { id: 'urea', kind: 'fertilizer', title: 'Top-dress with urea', fromDap: 28, toDap: 42, needsMoistSoil: true,
+      { id: 'urea', kind: 'fertilizer', dose: { product: 'urea', kgPerHa: 75 }, title: 'Top-dress with urea', fromDap: 28, toDap: 42, needsMoistSoil: true,
         how: '1½ bags (75 kg) urea per hectare beside the row, covered with soil.' },
       { id: 'weed2', kind: 'weed', title: 'Second weeding; pull Striga before it flowers', fromDap: 35, toDap: 50,
         how: 'Uproot Striga plants by hand before they set seed — each plant can shed tens of thousands of seeds.' },
@@ -200,7 +202,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { name: 'Maturity', startDap: 100, note: '95% of pods brown. Harvest fast — pods shatter.' },
     ],
     tasks: [
-      { id: 'basal', kind: 'fertilizer', title: 'Apply SSP and inoculate seed', fromDap: 0, toDap: 7, needsMoistSoil: true,
+      { id: 'basal', kind: 'fertilizer', dose: { product: 'single super phosphate', kgPerHa: 200 }, title: 'Apply SSP and inoculate seed', fromDap: 0, toDap: 7, needsMoistSoil: true,
         how: '4 bags (200 kg) single super phosphate per hectare (~36 kg P₂O₅). Inoculate seed with Bradyrhizobium on the day of sowing. No nitrogen top-dress is needed.' },
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 14, toDap: 24, how: 'Hoe shallowly to avoid damaging roots and nodules.' },
       { id: 'weed2', kind: 'weed', title: 'Second weeding', fromDap: 35, toDap: 45, how: 'Last weeding before the canopy closes.' },
@@ -233,7 +235,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { name: 'Maturity', startDap: 75, note: 'Pods dry and turn straw-coloured.' },
     ],
     tasks: [
-      { id: 'basal', kind: 'fertilizer', title: 'Apply single super phosphate', fromDap: 0, toDap: 7, needsMoistSoil: true,
+      { id: 'basal', kind: 'fertilizer', dose: { product: 'single super phosphate', kgPerHa: 125 }, title: 'Apply single super phosphate', fromDap: 0, toDap: 7, needsMoistSoil: true,
         how: '2–3 bags (100–150 kg) SSP per hectare at sowing. Cowpea fixes its own nitrogen.' },
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 14, toDap: 21, how: 'Weed before the canopy spreads.' },
       { id: 'spray1', kind: 'spray', title: 'Insecticide spray at flower-bud stage', fromDap: 33, toDap: 40, needsSprayWindow: true,
@@ -269,13 +271,13 @@ export const CROPS: Record<CropId, CropDef> = {
       { name: 'Late harvest', startDap: 95, note: 'Yields taper; clean up plant debris after.' },
     ],
     tasks: [
-      { id: 'basal', kind: 'fertilizer', title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 7, needsMoistSoil: true,
+      { id: 'basal', kind: 'fertilizer', dose: { product: 'NPK 15-15-15', kgPerHa: 250 }, title: 'Apply basal NPK 15-15-15', fromDap: 0, toDap: 7, needsMoistSoil: true,
         how: '5 bags (250 kg) per hectare worked into the beds at transplanting.' },
       { id: 'stake', kind: 'other', title: 'Stake and tie plants', fromDap: 14, toDap: 24, how: 'Keeps fruit off the soil and improves airflow, which cuts blight.' },
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 14, toDap: 24, how: 'Shallow hoeing; mulch afterwards to hold moisture.' },
       { id: 'tuta', kind: 'scout', title: 'Scout for Tuta absoluta', fromDap: 7, toDap: 100, repeatDays: 7,
         how: 'Look for papery mines in leaves and holes in fruit. Pheromone traps give early warning.' },
-      { id: 'topdress', kind: 'fertilizer', title: 'Top-dress with CAN at first flowering', fromDap: 28, toDap: 36, needsMoistSoil: true,
+      { id: 'topdress', kind: 'fertilizer', dose: { product: 'CAN', kgPerHa: 100 }, title: 'Top-dress with CAN at first flowering', fromDap: 28, toDap: 36, needsMoistSoil: true,
         how: '2 bags (100 kg) calcium ammonium nitrate per hectare. The calcium helps against blossom-end rot.' },
       { id: 'weed2', kind: 'weed', title: 'Second weeding', fromDap: 35, toDap: 45, how: 'Remove weeds that host whiteflies and thrips.' },
       { id: 'harvest', kind: 'harvest', title: 'Start harvesting', fromDap: 65, toDap: 110, repeatDays: 3,
@@ -305,7 +307,7 @@ export const CROPS: Record<CropId, CropDef> = {
     ],
     tasks: [
       { id: 'weed1', kind: 'weed', title: 'First weeding', fromDap: 21, toDap: 30, how: 'Around 3–4 weeks after planting.' },
-      { id: 'npk', kind: 'fertilizer', title: 'Apply NPK 15-15-15', fromDap: 28, toDap: 56, needsMoistSoil: true,
+      { id: 'npk', kind: 'fertilizer', dose: { product: 'NPK 15-15-15', kgPerHa: 400 }, title: 'Apply NPK 15-15-15', fromDap: 28, toDap: 56, needsMoistSoil: true,
         how: '8 bags (400 kg) per hectare in a ring about 10 cm from each plant.' },
       { id: 'weed2', kind: 'weed', title: 'Second weeding', fromDap: 56, toDap: 66, how: 'Around 8 weeks after planting.' },
       { id: 'cmd', kind: 'scout', title: 'Check for mosaic and brown streak disease', fromDap: 30, toDap: 120, repeatDays: 14,

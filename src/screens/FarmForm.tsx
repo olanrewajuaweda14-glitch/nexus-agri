@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Crosshair, Loader2 } from 'lucide-react';
 import type { CropId, Farm, Maturity, WaterSource } from '../lib/types';
 import { CROP_LIST, CROPS } from '../lib/crops';
 import { localToday } from '../lib/dates';
-import { api } from '../lib/data/api';
+import { getPlace } from '../lib/data/api';
 import { MapPicker } from '../components/MapPicker';
 import { Segmented } from '../components/ui';
 
@@ -22,11 +22,15 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
   const [locating, setLocating] = useState(false);
   const [locErr, setLocErr] = useState<string | null>(null);
 
+  const lookup = useRef(0);
   const setPoint = (lat: number, lng: number) => {
     setPt({ lat, lng });
-    api<{ name: string | null }>(`/api/place?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`, { timeoutMs: 8000 })
-      .then((r) => r.name && setPlaceName(r.name))
-      .catch(() => {});
+    // Drop the old name straight away so a failed lookup can't leave the previous place's name on a new pin.
+    setPlaceName('');
+    const id = ++lookup.current;
+    getPlace(lat, lng).then((name) => {
+      if (name && id === lookup.current) setPlaceName(name);
+    });
   };
 
   const locate = () => {

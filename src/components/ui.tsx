@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export function Section({ title, aside, children, id }: { title: string; aside?: ReactNode; children: ReactNode; id?: string }) {
@@ -70,5 +70,43 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * Number box that lets people clear and retype freely (a plain controlled
+ * <input type=number> snaps back to 0), and shows thousands separators when
+ * not being edited so ₦495,000 is easy to read.
+ */
+export function NumberInput({ value, onChange, className = '', grouped = false, ...rest }: { value: number; onChange: (n: number) => void; className?: string; grouped?: boolean } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>) {
+  const fmt = (n: number) => (grouped ? n.toLocaleString('en-NG', { maximumFractionDigits: 2 }) : String(n));
+  const [text, setText] = useState(() => fmt(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setText(fmt(value));
+  }, [value, editing]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <input
+      {...rest}
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={text}
+      onFocus={(e) => {
+        setEditing(true);
+        setText(String(value));
+        requestAnimationFrame(() => e.target.select());
+      }}
+      onBlur={() => {
+        setEditing(false);
+        setText(fmt(value));
+      }}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^\d.]/g, '');
+        setText(raw);
+        const n = parseFloat(raw);
+        onChange(Number.isFinite(n) && n >= 0 ? n : 0);
+      }}
+    />
   );
 }
