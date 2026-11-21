@@ -1,0 +1,34 @@
+import { describe, expect, it } from 'vitest';
+import { handleApi } from '../server/handlers';
+
+const req = (route: string, method = 'GET', extra: Partial<Parameters<typeof handleApi>[0]> = {}) =>
+  handleApi({ route, method, query: {}, body: undefined, ip: '10.0.0.1', ...extra });
+
+describe('shared API handler (Express and Vercel)', () => {
+  it('reports AI status on /health', async () => {
+    const r = await req('health');
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, languages: { ha: 'Hausa' } });
+  });
+  it('routes by method: 405 for the wrong verb, 404 for unknown routes', async () => {
+    expect((await req('ask', 'GET')).status).toBe(405);
+    expect((await req('health', 'POST')).status).toBe(405);
+    expect((await req('nope')).status).toBe(404);
+  });
+  it('validates inputs before calling anything upstream', async () => {
+    expect((await req('weather', 'GET', { query: { lat: '91', lng: '3' } })).body).toEqual({ error: 'bad_coords' });
+    expect((await req('ask', 'POST', { body: { question: '  ' } })).body).toEqual({ error: 'question_required' });
+    expect((await req('diagnose', 'POST', { body: { imageBase64: 'x'.repeat(2000), mimeType: 'image/gif' } })).body).toEqual({ error: 'bad_image_type' });
+  });
+  it('accepts array-valued query params (Vercel parses repeated keys as arrays)', async () => {
+    expect((await req('place', 'GET', { query: { lat: ['abc'], lng: ['3'] } })).body).toEqual({ error: 'bad_coords' });
+  });
+  it('rate-limits per IP and route', async () => {
+    const ip = '10.9.9.9';
+    let last;
+    for (let i = 0; i < 11; i++) last = await req('diagnose', 'POST', { ip, body: {} });
+    expect(last!.status).toBe(429);
+    expect(last!.headers?.['Retry-After']).toBeDefined();
+    expect((await req('diagnose', 'POST', { ip: '10.9.9.10', body: {} })).status).toBe(400);
+  });
+});
