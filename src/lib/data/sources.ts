@@ -7,7 +7,7 @@
  * the same APIs directly with the same normalisers. All four sources allow
  * cross-origin requests and need no key.
  */
-import type { ClimateBundle, SoilBundle, WeatherBundle } from '../types';
+import type { ClimateBundle, SoilBundle, WeatherBundle } from '../types.js';
 
 export class UpstreamError extends Error {
   constructor(public source: string, message: string) {
