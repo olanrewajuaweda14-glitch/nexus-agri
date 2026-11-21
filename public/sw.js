@@ -1,56 +1,51 @@
-// NEXUS AGRI Service Worker for offline capability & asset caching
-const CACHE_NAME = 'nexus-agri-v1';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon.svg'
-];
+// Nexus Agri service worker: keeps the app shell available offline.
+// Data offline is handled by the app itself (last good copy in localStorage).
+const CACHE = 'nexus-agri-v2';
+const SHELL = ['/', '/manifest.json', '/icon.svg'];
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch(() => {});
-    })
-  );
+self.addEventListener('install', (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
-  );
+self.addEventListener('activate', (e) => {
+  e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))));
   self.clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
-  // Only handle GET requests and ignore API routes from cache
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.pathname.startsWith('/api/')) return;
+
+  // Pages: network first, fall back to the cached shell.
+  if (req.mode === 'navigate') {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put('/', copy));
+          return res;
+        })
+        .catch(() => caches.match('/')),
+    );
     return;
   }
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-          return networkResponse;
-        }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
-        return networkResponse;
-      }).catch(() => {
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('/index.html');
-        }
-      });
-    })
+
+  // Hashed assets, fonts and map tiles: cache first.
+  const cacheable = url.origin === location.origin || /fonts\.(googleapis|gstatic)\.com|arcgisonline\.com/.test(url.host);
+  if (!cacheable) return;
+  e.respondWith(
+    caches.match(req).then(
+      (hit) =>
+        hit ||
+        fetch(req).then((res) => {
+          if (res.ok || res.type === 'opaque') {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        }),
+    ),
   );
 });
