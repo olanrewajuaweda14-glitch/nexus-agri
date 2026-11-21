@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { CountUp } from './motion';
 
 export function Section({ title, aside, children, id }: { title: string; aside?: ReactNode; children: ReactNode; id?: string }) {
   return (
     <section className="space-y-3" id={id} aria-labelledby={id ? `${id}-h` : undefined}>
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <h2 id={id ? `${id}-h` : undefined} className="font-display text-xl font-semibold tracking-tight">
           {title}
         </h2>
@@ -40,8 +41,9 @@ export function ErrorNote({ title, detail, onRetry }: { title: string; detail?: 
   );
 }
 
-export function Stat({ label, value, unit, note, tone }: { label: string; value: ReactNode; unit?: string; note?: ReactNode; tone?: 'leaf' | 'rain' | 'sun' | 'clay' }) {
+export function Stat({ label, value, unit, note, tone, decimals = 0, format }: { label: string; value: ReactNode; unit?: string; note?: ReactNode; tone?: 'leaf' | 'rain' | 'sun' | 'clay'; decimals?: number; format?: (n: number) => string }) {
   const color = tone ? { leaf: 'text-leaf', rain: 'text-rain', sun: 'text-sun', clay: 'text-clay' }[tone] : 'text-ink';
+  if (typeof value === 'number') value = <CountUp value={value} format={format ?? ((n) => n.toFixed(decimals))} />;
   return (
     <div className="min-w-0">
       <div className="eyebrow">{label}</div>
@@ -108,5 +110,35 @@ export function NumberInput({ value, onChange, className = '', grouped = false, 
         onChange(Number.isFinite(n) && n >= 0 ? n : 0);
       }}
     />
+  );
+}
+
+/** Ring that fills as the week's jobs are ticked off. */
+export function ProgressRing({ done, total, size = 40 }: { done: number; total: number; size?: number }) {
+  const r = size / 2 - 3.5;
+  const c = 2 * Math.PI * r;
+  const f = total ? done / total : 0;
+  const complete = total > 0 && done === total;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }} role="img" aria-label={`${done} of ${total} jobs done this week`}>
+      <svg viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-line-2)" strokeWidth="4" />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="var(--color-leaf)"
+          strokeWidth="4"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - f)}
+          style={{ transition: 'stroke-dashoffset 700ms var(--ease-out)' }}
+        />
+      </svg>
+      <span key={done} className={`num absolute inset-0 flex items-center justify-center text-[11px] font-medium ${complete ? 'text-leaf' : 'text-ink-2'} [animation:pop_380ms_var(--ease-spring)]`}>
+        {done}/{total}
+      </span>
+    </div>
   );
 }

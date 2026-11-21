@@ -6,6 +6,7 @@ import { economics, sensitivity } from '../lib/engine/economics';
 import { naira } from '../lib/format';
 import { KEYS, load, save } from '../lib/storage';
 import { NumberInput, Section, Stat } from '../components/ui';
+import { CountUp } from '../components/motion';
 
 interface Stored extends Budget {
   edited: boolean;
@@ -35,7 +36,7 @@ export function Money({ farm }: { farm: Farm }) {
         <div className="eyebrow">{crop.name} · {farm.sizeHa} ha</div>
         <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
           {profitable ? 'Expected profit ' : 'Expected loss '}
-          <span className={`num font-medium ${profitable ? 'text-leaf' : 'text-clay'}`}>{naira(Math.abs(e.profit), true)}</span>
+          <span className={`num font-medium transition-colors duration-500 ${profitable ? 'text-leaf' : 'text-clay'}`}><CountUp value={Math.abs(e.profit)} format={(n) => naira(n, true)} /></span>
         </h1>
         {!b.edited && (
           <p className="rounded-lg bg-sun-soft px-3 py-2 text-sm">
@@ -45,12 +46,12 @@ export function Money({ farm }: { farm: Farm }) {
       </header>
 
       <div className="card grid grid-cols-2 gap-x-6 gap-y-6 p-4 sm:grid-cols-3">
-        <Stat label="Total cost" value={naira(e.totalCost, true)} note={`${naira(e.costPerHa, true)} per ha`} />
-        <Stat label="Revenue" value={naira(e.revenue, true)} note={`${(b.yieldTHa * farm.sizeHa).toFixed(1)} t × ${naira(b.pricePerTon, true)}`} />
+        <Stat label="Total cost" value={e.totalCost} format={(n: number) => naira(n, true)} note={`${naira(e.costPerHa, true)} per ha`} />
+        <Stat label="Revenue" value={e.revenue} format={(n: number) => naira(n, true)} note={`${(b.yieldTHa * farm.sizeHa).toFixed(1)} t × ${naira(b.pricePerTon, true)}`} />
         <Stat label="Margin" value={e.marginPct != null ? Math.round(e.marginPct) : '–'} unit="%" tone={profitable ? 'leaf' : 'clay'} note="profit ÷ revenue" />
-        <Stat label="Break-even yield" value={e.breakEvenYield?.toFixed(2) ?? '–'} unit="t/ha" note={e.breakEvenYield != null ? `${Math.round((e.breakEvenYield / Math.max(b.yieldTHa, 0.01)) * 100)}% of your expected yield` : undefined} />
-        <Stat label="Break-even price" value={e.breakEvenPrice != null ? naira(e.breakEvenPrice, true) : '–'} unit="/t" note={e.breakEvenPrice != null ? `₦${Math.round(e.breakEvenPrice / 1000)} per kg` : undefined} />
-        <Stat label="Return per ₦1" value={e.returnPerNaira?.toFixed(2) ?? '–'} note="revenue ÷ cost" />
+        <Stat label="Break-even yield" value={e.breakEvenYield ?? '–'} decimals={2} unit="t/ha" note={e.breakEvenYield != null ? `${Math.round((e.breakEvenYield / Math.max(b.yieldTHa, 0.01)) * 100)}% of your expected yield` : undefined} />
+        <Stat label="Break-even price" value={e.breakEvenPrice ?? '–'} format={(n: number) => naira(n, true)} unit="/t" note={e.breakEvenPrice != null ? `₦${Math.round(e.breakEvenPrice / 1000)} per kg` : undefined} />
+        <Stat label="Return per ₦1" value={e.returnPerNaira ?? '–'} decimals={2} note="revenue ÷ cost" />
       </div>
 
       <Section title="Your numbers" id="inputs">
@@ -119,7 +120,7 @@ export function Money({ farm }: { farm: Farm }) {
                     {steps[i] > 0 ? `+${steps[i]}` : steps[i]}% <span className="normal-case tracking-normal text-ink-3">({(b.yieldTHa * (1 + steps[i] / 100)).toFixed(1)} t)</span>
                   </th>
                   {row.map((p, j) => (
-                    <td key={j} className={`num rounded-md px-1 py-2 text-[13px] ${i === 2 && j === 2 ? 'ring-2 ring-ink' : ''}`} style={{ background: heat(p, e.totalCost) }}>
+                    <td key={j} className={`fade-in num rounded-md px-1 py-2 text-[13px] transition-colors duration-500 ${i === 2 && j === 2 ? 'ring-2 ring-ink' : ''}`} style={{ background: heat(p, e.totalCost), ['--i' as string]: (i + j) * 6 }}>
                       {naira(p, true)}
                     </td>
                   ))}
@@ -147,9 +148,9 @@ function CostBar({ b }: { b: Budget }) {
   if (!total) return null;
   return (
     <div>
-      <div className="flex h-3 overflow-hidden rounded-full" role="img" aria-label="Cost breakdown">
+      <div className="grow-x flex h-3 overflow-hidden rounded-full" role="img" aria-label="Cost breakdown">
         {b.costs.map((c, i) => c.amount > 0 && (
-          <div key={c.id} style={{ width: `${(c.amount / total) * 100}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} title={`${c.label}: ${Math.round((c.amount / total) * 100)}%`} />
+          <div key={c.id} className="transition-[width] duration-500" style={{ width: `${(c.amount / total) * 100}%`, background: BAR_COLORS[i % BAR_COLORS.length] }} title={`${c.label}: ${Math.round((c.amount / total) * 100)}%`} />
         ))}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-2">

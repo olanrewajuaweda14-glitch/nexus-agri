@@ -4,7 +4,7 @@ import type { Farm, SoilSummary } from '../lib/types';
 import type { Insights } from '../lib/useInsights';
 import { textureClass } from '../lib/engine/soil';
 import { relativeDay } from '../lib/dates';
-import { WaterChart } from '../components/charts';
+import { RootZoneTank, WaterChart } from '../components/charts';
 import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui';
 
 export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; onUpdateFarm: (patch: Partial<Farm>) => void }) {
@@ -26,7 +26,9 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
             {farm.crop === 'rice' && farm.water === 'irrigated' && (
               <p className="rounded-lg bg-rain-soft px-3 py-2 text-sm">For flooded paddy rice, keep 2–5 cm of standing water. This balance applies to upland or rainfed rice.</p>
             )}
-            <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+            <div className="flex items-center gap-4">
+            <RootZoneTank available={water.availableNow} stressAt={1 - crop.p} rootCm={stage.rootDepthM * 100} />
+            <div className="grid flex-1 grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
               <Stat
                 label="Available water"
                 value={Math.round(water.availableNow * 100)}
@@ -37,6 +39,7 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
               <Stat label="Short of full" value={Math.round(water.depletionNow)} unit="mm" note={`of ${Math.round(water.tawNow)} mm the roots can reach`} />
               <Stat label="Crop use, next 7 d" value={Math.round(water.etcNext7)} unit="mm" note={`Kc ${stage.kc.toFixed(2)} × ET₀`} />
               <Stat label="Useful rain, next 7 d" value={Math.round(water.rainNext7)} unit="mm" tone="rain" note="weighted by chance" />
+            </div>
             </div>
             <WaterChart water={water} />
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-ink-2">
@@ -74,11 +77,11 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
               <ErrorNote title="SoilGrids estimate unavailable" detail={`${soil.error} You can still enter lab results below.`} onRetry={ins.refresh} />
             )}
             <div className="card grid grid-cols-2 gap-x-6 gap-y-5 p-4 sm:grid-cols-3">
-              <Stat label="pH (water)" value={soilSummary.ph?.toFixed(1) ?? '–'} note={`${crop.name} likes ${crop.phRange[0]}–${crop.phRange[1]}`} />
+              <Stat label="pH (water)" value={soilSummary.ph ?? '–'} decimals={1} note={`${crop.name} likes ${crop.phRange[0]}–${crop.phRange[1]}`} />
               <Stat label="Texture" value={<span className="font-sans text-lg">{textureClass(soilSummary.sandPct, soilSummary.clayPct)}</span>} note={soilSummary.sandPct != null ? `${soilSummary.sandPct}% sand · ${soilSummary.clayPct}% clay` : undefined} />
-              <Stat label="Organic carbon" value={soilSummary.socGKg != null ? (soilSummary.socGKg / 10).toFixed(2) : '–'} unit="%" />
-              <Stat label="Total nitrogen" value={soilSummary.nitrogenGKg?.toFixed(2) ?? '–'} unit="g/kg" />
-              <Stat label="CEC" value={soilSummary.cecCmolKg?.toFixed(1) ?? '–'} unit="cmol/kg" note="nutrient-holding capacity" />
+              <Stat label="Organic carbon" value={soilSummary.socGKg != null ? soilSummary.socGKg / 10 : '–'} decimals={2} unit="%" />
+              <Stat label="Total nitrogen" value={soilSummary.nitrogenGKg ?? '–'} decimals={2} unit="g/kg" />
+              <Stat label="CEC" value={soilSummary.cecCmolKg ?? '–'} decimals={1} unit="cmol/kg" note="nutrient-holding capacity" />
               <Stat label="Usable water" value={limits.awcMmPerM} unit="mm/m" note={limits.estimated ? 'typical value' : 'from texture + carbon'} />
             </div>
 

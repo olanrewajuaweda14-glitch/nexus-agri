@@ -1,10 +1,11 @@
 import type { Insights } from '../lib/useInsights';
 import { farmNow } from '../lib/useInsights';
-import { shortDate, weekday } from '../lib/dates';
+import { shortDate } from '../lib/dates';
 import { ago, wmo } from '../lib/format';
 import { formatWindow } from '../lib/engine/plan';
 import { mainBlocker } from '../lib/engine/spray';
-import { MonthlyRain, SprayStrip } from '../components/charts';
+import { ForecastRows, MonthlyRain, SprayStrip } from '../components/charts';
+import { FarmSky } from '../components/FarmSky';
 import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui';
 
 export function Weather({ ins }: { ins: Insights }) {
@@ -28,24 +29,13 @@ export function Weather({ ins }: { ins: Insights }) {
   }
 
   const nowIso = farmNow(w);
-  const hi = Math.max(0, w.hourly.time.findIndex((t) => t >= nowIso.slice(0, 13)));
-  const ti = Math.max(0, w.daily.time.indexOf(today));
-  const days = w.daily.time.slice(ti, ti + 8).map((d, k) => ({ d, i: ti + k }));
   const spray = derived.spray;
   const blocker = spray ? mainBlocker(spray.hours) : null;
   const month = Number(today.slice(5, 7)) - 1;
 
   return (
     <div className="space-y-8">
-      <header>
-        <div className="eyebrow">Right now at the farm</div>
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
-          <Stat label="Temperature" value={Math.round(w.hourly.temp[hi] ?? 0)} unit="°C" />
-          <Stat label="Humidity" value={Math.round(w.hourly.rh[hi] ?? 0)} unit="%" />
-          <Stat label="Wind" value={Math.round(w.hourly.wind[hi] ?? 0)} unit="km/h" note={`gusts ${Math.round(w.hourly.gust[hi] ?? 0)}`} />
-          <Stat label="Rain today" value={(w.daily.precip[ti] ?? 0).toFixed(1)} unit="mm" tone="rain" note={`${w.daily.precipProb[ti] ?? 0}% chance`} />
-        </div>
-      </header>
+      {spray && <FarmSky weather={w} spray={spray} today={today} nowIso={nowIso} standalone />}
 
       {spray && (
         <Section title="Spray windows" id="spray" aside="next 72 h">
@@ -76,31 +66,8 @@ export function Weather({ ins }: { ins: Insights }) {
       )}
 
       <Section title="8-day forecast" id="forecast">
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[560px] whitespace-nowrap text-sm">
-            <thead>
-              <tr className="border-b border-line text-left">
-                {['Day', 'Sky', 'Rain', 'Chance', 'High / low', 'Wind max', 'ET₀'].map((h) => (
-                  <th key={h} scope="col" className="eyebrow px-3 py-2.5 font-normal">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {days.map(({ d, i }, k) => (
-                <tr key={d} className="border-b border-line-2 last:border-0">
-                  <th scope="row" className="px-3 py-2.5 text-left font-medium">{k === 0 ? 'Today' : weekday(d)}</th>
-                  <td className="px-3 py-2.5 text-ink-2">{wmo(w.daily.code[i])}</td>
-                  <td className="num px-3 py-2.5 text-rain">{(w.daily.precip[i] ?? 0).toFixed(1)} mm</td>
-                  <td className="num px-3 py-2.5 text-ink-2">{w.daily.precipProb[i] ?? '–'}%</td>
-                  <td className="num px-3 py-2.5">{Math.round(w.daily.tMax[i] ?? 0)}° <span className="text-ink-3">/ {Math.round(w.daily.tMin[i] ?? 0)}°</span></td>
-                  <td className="num px-3 py-2.5 text-ink-2">{Math.round(w.daily.windMax[i] ?? 0)} km/h</td>
-                  <td className="num px-3 py-2.5 text-ink-2">{(w.daily.et0[i] ?? 0).toFixed(1)} mm</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-ink-3">ET₀ is how much water a reference grass crop would lose that day. Your crop uses ET₀ × its crop coefficient — see the Field tab.</p>
+        <ForecastRows weather={w} today={today} label={wmo} />
+        <p className="text-xs text-ink-3">Bar strength shows the chance of rain. Temperature bars share one scale across the week. Daily water loss (ET₀) feeds the water balance on the Field tab.</p>
       </Section>
 
       <Section title="Rainfall against normal" id="climate">
