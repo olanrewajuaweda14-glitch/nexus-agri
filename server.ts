@@ -8,7 +8,7 @@ import { ai, MODEL } from './server/ai.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-// `npm start` runs the bundled dist/server.cjs; treat that as production without needing NODE_ENV (which Windows shells can't set inline).
+// `npm start` runs the bundled build/server.cjs; treat that as production without needing NODE_ENV (which Windows shells can't set inline).
 const isProd = process.env.NODE_ENV === 'production' || !!process.argv[1]?.endsWith('server.cjs');
 
 app.set('trust proxy', 1);

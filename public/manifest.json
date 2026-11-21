@@ -1,10 +1,17 @@
 {
   "name": "Nexus Agri",
   "short_name": "Nexus Agri",
-  "description": "What your farm needs this week — from live weather, soil data and your crop's growth stage.",
+  "description": "What your farm needs this week \u2014 from live weather, soil data and your crop's growth stage.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f2ede2",
   "theme_color": "#f2ede2",
-  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
 }

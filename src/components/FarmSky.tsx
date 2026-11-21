@@ -43,7 +43,8 @@ const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 export function FarmSky({ weather, spray, today, nowIso, standalone = false }: { weather: WeatherBundle; spray: SprayOutlook; today: string; nowIso: string; standalone?: boolean }) {
   const h = weather.hourly;
   const nowHour = nowIso.slice(0, 13);
-  const iNow = Math.max(0, h.time.findIndex((t) => t.slice(0, 13) >= nowHour));
+  const found = h.time.findIndex((t) => t.slice(0, 13) >= nowHour);
+  const iNow = found < 0 ? Math.max(0, h.time.length - 1) : found;
   const todayIdx = h.time.map((t, i) => [t, i] as const).filter(([t]) => t.startsWith(today));
   const daylight = todayIdx.filter(([, i]) => h.isDay[i] === 1);
   const dayStart = daylight.length ? Number(daylight[0][0].slice(11, 13)) : 6;

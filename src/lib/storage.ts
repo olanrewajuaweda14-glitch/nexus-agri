@@ -25,6 +25,20 @@ export function remove(key: string) {
   }
 }
 
+/** Removes every stored key that starts with one of the prefixes. */
+export function removeByPrefix(...prefixes: string[]) {
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && prefixes.some((p) => k.startsWith(p))) doomed.push(k);
+    }
+    doomed.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    /* ignore */
+  }
+}
+
 export const KEYS = {
   farms: 'na:farms',
   active: 'na:active',
