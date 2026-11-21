@@ -176,14 +176,15 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
       {/* Desktop rail */}
       <nav className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-line px-3 py-5 md:flex" aria-label="Main">
         <div className="px-2"><Logo /></div>
-        <ul className="mt-8 space-y-0.5">
+        <ul className="relative mt-8 space-y-0.5">
+          <li aria-hidden className="pointer-events-none absolute inset-x-0 top-0.5 h-11 rounded-lg bg-ink transition-transform duration-[380ms]" style={{ transform: `translateY(${TABS.findIndex((t) => t.id === tab) * 46}px)`, transitionTimingFunction: 'var(--ease-out)' }} />
           {TABS.map(({ id, label, Icon }) => (
             <li key={id}>
               <button
                 type="button"
                 onClick={() => go(id)}
                 aria-current={tab === id ? 'page' : undefined}
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-colors ${tab === id ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-card hover:text-ink'}`}
+                className={`relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[15px] font-medium transition-colors duration-300 ${tab === id ? 'text-paper' : 'text-ink-2 hover:bg-card/70 hover:text-ink'}`}
               >
                 <Icon className="h-[18px] w-[18px]" aria-hidden /> {label}
               </button>
@@ -213,19 +214,24 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
           </div>
         </header>
 
-        <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:px-6 md:pb-16">{screen}</main>
+        <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:px-6 md:pb-16">
+          <div key={tab} className="page-enter">{screen}</div>
+        </main>
       </div>
 
       {/* Mobile tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Main">
-        <ul className="mx-auto flex max-w-md">
+        <ul className="relative mx-auto flex max-w-md">
+          <li aria-hidden className="pointer-events-none absolute top-1 h-[3px] w-[20%] transition-transform duration-[380ms]" style={{ transform: `translateX(${TABS.findIndex((t) => t.id === tab) * 100}%)`, transitionTimingFunction: 'var(--ease-out)' }}>
+            <span className="mx-auto block h-full w-8 rounded-full bg-leaf" />
+          </li>
           {TABS.map(({ id, label, Icon }) => (
             <li key={id} className="flex-1">
               <button
                 type="button"
                 onClick={() => go(id)}
                 aria-current={tab === id ? 'page' : undefined}
-                className={`flex w-full flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${tab === id ? 'text-leaf' : 'text-ink-3'}`}
+                className={`flex w-full flex-col items-center gap-0.5 pb-2 pt-2.5 text-[11px] font-medium transition-colors duration-300 ${tab === id ? 'text-leaf' : 'text-ink-3'}`}
               >
                 <Icon className="h-5 w-5" strokeWidth={tab === id ? 2.4 : 1.8} aria-hidden />
                 {label}

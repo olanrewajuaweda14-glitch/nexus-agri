@@ -6,7 +6,7 @@ import { stageFor } from './engine/stage';
 import { interpretSoil, waterLimits } from './engine/soil';
 import { waterBalance } from './engine/water';
 import { sprayOutlook } from './engine/spray';
-import { buildPlan } from './engine/plan';
+import { buildPlan, key } from './engine/plan';
 import { localToday } from './dates';
 
 export interface Source<T> {
@@ -69,8 +69,11 @@ export function useInsights(farm: Farm, done: Set<string>) {
   const derived = useMemo(() => {
     const water = w ? waterBalance(w.daily, today, crop, farm.plantingDate, limits) : null;
     const spray = w ? sprayOutlook(w.hourly, farmNow(w)) : null;
-    const plan = buildPlan({ farm, crop, stage, today, weather: w, water, spray, soilFindings: findings, climate: climate.data, done });
-    return { water, spray, plan, forecastOk: !!w };
+    // Build with nothing ticked so finished jobs stay on screen (struck through) for the week;
+    // `openPlan` is what still needs doing.
+    const plan = buildPlan({ farm, crop, stage, today, weather: w, water, spray, soilFindings: findings, climate: climate.data, done: new Set() });
+    const openPlan = plan.filter((a) => !(a.checkable && done.has(key(farm, a.id))));
+    return { water, spray, plan, openPlan, forecastOk: !!w };
   }, [w, today, crop, farm, stage, limits, findings, climate.data, done]);
 
   const refresh = useCallback(() => {

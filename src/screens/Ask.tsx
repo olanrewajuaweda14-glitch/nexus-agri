@@ -119,7 +119,7 @@ function buildContext(farm: Farm, ins: Insights) {
     farm: { name: farm.name, place: farm.placeName, crop: ins.crop.name, sizeHa: farm.sizeHa, water: farm.water, planted: farm.plantingDate, variety: `${farm.maturity} maturity` },
     today: ins.today,
     stage: { dap: ins.stage.dap, name: ins.stage.name, next: ins.stage.nextName, daysToNext: ins.stage.daysToNext },
-    plan: d.plan.map((a) => ({ priority: a.priority, title: a.title, when: a.when, why: a.why })),
+    plan: d.openPlan.map((a) => ({ priority: a.priority, title: a.title, when: a.when, why: a.why })),
     water: d.water && { availablePct: Math.round(d.water.availableNow * 100), stressed: d.water.stressedNow, stressDate: d.water.stressDate, rainNext7mm: d.water.rainNext7, cropUseNext7mm: d.water.etcNext7, rainLast7mm: d.water.rainLast7 },
     forecastAvailable: !!w,
     forecast: w && ti >= 0 ? w.daily.time.slice(ti, ti + 8).map((date, k) => ({ date, rainMm: w.daily.precip[ti + k], chance: w.daily.precipProb[ti + k], tMax: w.daily.tMax[ti + k], tMin: w.daily.tMin[ti + k] })) : null,

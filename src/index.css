@@ -143,3 +143,172 @@
     animation: none;
   }
 }
+
+/* =============================== Motion system ===============================
+ * Every animation here carries information (what just loaded, what changed,
+ * what is happening at the farm). Durations stay short so the app never feels
+ * slower than it is, and all of it switches off under prefers-reduced-motion.
+ */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes grow-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes pop {
+  0% { transform: scale(0.6); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+@keyframes ripple {
+  from { transform: scale(0.5); opacity: 0.55; }
+  to { transform: scale(2.2); opacity: 0; }
+}
+@keyframes beacon {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-ink) 35%, transparent); }
+  50% { box-shadow: 0 0 0 6px transparent; }
+}
+@keyframes sway {
+  0%, 100% { transform: rotate(-1.4deg); }
+  50% { transform: rotate(1.4deg); }
+}
+@keyframes rainfall {
+  from { transform: translate3d(0, -30%, 0); }
+  to { transform: translate3d(-6%, 30%, 0); }
+}
+@keyframes sun-glow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+
+/* Page content when switching tabs. */
+.page-enter > * > * {
+  animation: rise 420ms var(--ease-out) both;
+}
+.page-enter > * > *:nth-child(2) { animation-delay: 50ms; }
+.page-enter > * > *:nth-child(3) { animation-delay: 100ms; }
+.page-enter > * > *:nth-child(4) { animation-delay: 150ms; }
+.page-enter > * > *:nth-child(5) { animation-delay: 200ms; }
+.page-enter > * > *:nth-child(n + 6) { animation-delay: 240ms; }
+
+/* Staggered lists: set --i on each child. */
+.stagger > * {
+  animation: rise 460ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 80ms);
+}
+
+.grow-y {
+  transform-origin: bottom;
+  animation: grow-y 700ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 40ms + 150ms);
+}
+.grow-x {
+  transform-origin: left;
+  animation: grow-x 900ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+}
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: draw 1400ms var(--ease-in-out) both 200ms;
+}
+.fade-in {
+  animation: fade 600ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 12ms + 100ms);
+}
+.beacon {
+  animation: beacon 2.4s var(--ease-in-out) infinite;
+}
+.sway {
+  transform-origin: bottom center;
+  transform-box: fill-box;
+  animation: sway 5s var(--ease-in-out) infinite;
+}
+
+/* Smooth open/close for expandable content without measuring heights. */
+.expand {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 320ms var(--ease-out);
+}
+.expand[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+.expand > div {
+  overflow: hidden;
+  min-height: 0;
+}
+.expand > div > * {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 200ms ease, transform 280ms var(--ease-out);
+}
+.expand[data-open='true'] > div > * {
+  opacity: 1;
+  transform: none;
+  transition-delay: 60ms;
+}
+
+/* Paper grain: a very light texture so large areas read as paper, not a flat fill. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.38 0 0 0 0 0.25 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+.press {
+  transition: transform 160ms var(--ease-out), box-shadow 200ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+.press:active {
+  transform: scale(0.985);
+}
+@media (hover: hover) {
+  .lift:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px -10px rgb(60 45 20 / 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+.no-anim,
+.no-anim * {
+  animation: none !important;
+}
