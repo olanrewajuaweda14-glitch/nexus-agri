@@ -1,16 +1,10 @@
 {
-  "name": "NEXUS AGRI — Agricultural Intelligence",
-  "short_name": "NEXUS AGRI",
-  "description": "AI-Powered Agricultural Intelligence & Decision Platform",
+  "name": "Nexus Agri",
+  "short_name": "Nexus Agri",
+  "description": "What your farm needs this week — from live weather, soil data and your crop's growth stage.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0d2319",
-  "theme_color": "#0d2319",
-  "icons": [
-    {
-      "src": "/icon.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml"
-    }
-  ]
+  "background_color": "#f2ede2",
+  "theme_color": "#f2ede2",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }

@@ -1,627 +1,280 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Farm,
-  AppNavigationTab,
-  WeatherData,
-  AlertNotification,
-} from './types';
-import {
-  MOCK_FARMS,
-  MOCK_WEATHER,
-  MOCK_ALERTS,
-} from './data/mockData';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarCheck, ChevronDown, CloudSun, Coins, Layers, MessageCircle, Pencil, Plus, RefreshCw, WifiOff } from 'lucide-react';
+import type { Farm } from './lib/types';
+import { KEYS, load, remove, save } from './lib/storage';
+import { addDays, localToday } from './lib/dates';
+import { useInsights } from './lib/useInsights';
+import { ago } from './lib/format';
+import { CROPS } from './lib/crops';
+import { Logo } from './components/Logo';
+import { Welcome } from './screens/Welcome';
+import { Today } from './screens/Today';
+import { Weather } from './screens/Weather';
+import { Field } from './screens/Field';
+import { Money } from './screens/Money';
+import { Ask } from './screens/Ask';
 
-// Common Components
-import { Header } from './components/common/Header';
-import { Sidebar } from './components/common/Sidebar';
-import { MobileNav } from './components/common/MobileNav';
-import { GlobalSearchModal } from './components/common/GlobalSearchModal';
-import { VoiceAIModal } from './components/common/VoiceAIModal';
-import { DemoStoryWalkthrough } from './components/common/DemoStoryWalkthrough';
-import { JudgePresentationBar } from './components/common/JudgePresentationBar';
-import { DecisionSynthesisModal } from './components/common/DecisionSynthesisModal';
-import { FirstSessionModal } from './components/common/FirstSessionModal';
+// The farm form carries Leaflet (~45 KB gzip); load it only when a field is being set up.
+const FarmForm = lazy(() => import('./screens/FarmForm').then((m) => ({ default: m.FarmForm })));
 
-// Pages
-import { OnboardingModal } from './pages/OnboardingModal';
-import { OnboardingPage } from './pages/OnboardingPage';
-import { LoginPage } from './pages/LoginPage';
-import { SignUpPage } from './pages/SignUpPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { OverviewDashboard } from './pages/OverviewDashboard';
-import { MyFarmsPage } from './pages/MyFarmsPage';
-import { FarmIntelligencePage } from './pages/FarmIntelligencePage';
-import { CropAdvisorPage } from './pages/CropAdvisorPage';
-import { WeatherPage } from './pages/WeatherPage';
-import { SoilPage } from './pages/SoilPage';
-import { SatellitePage } from './pages/SatellitePage';
-import { FarmHealthPage } from './pages/FarmHealthPage';
-import { PhotoAnalysisPage } from './pages/PhotoAnalysisPage';
-import { MarketIntelligencePage } from './pages/MarketIntelligencePage';
-import { FarmEconomicsPage } from './pages/FarmEconomicsPage';
-import { ScenarioSimulatorPage } from './pages/ScenarioSimulatorPage';
-import { RiskCenterPage } from './pages/RiskCenterPage';
-import { AiAdvisorPage } from './pages/AiAdvisorPage';
-import { AlertsCenterPage } from './pages/AlertsCenterPage';
-import { FarmReportsPage } from './pages/FarmReportsPage';
-import { KnowledgeCenterPage } from './pages/KnowledgeCenterPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { LandingPage } from './pages/LandingPage';
-import { AlertTriangle } from 'lucide-react';
+type Tab = 'today' | 'weather' | 'field' | 'money' | 'ask';
+const TABS: { id: Tab; label: string; Icon: typeof CalendarCheck }[] = [
+  { id: 'today', label: 'Plan', Icon: CalendarCheck },
+  { id: 'weather', label: 'Weather', Icon: CloudSun },
+  { id: 'field', label: 'Field', Icon: Layers },
+  { id: 'money', label: 'Money', Icon: Coins },
+  { id: 'ask', label: 'Ask', Icon: MessageCircle },
+];
 
-function AppContent() {
-  const { user, isAuthenticated, quickDemoLogin } = useAuth();
+const tabFromHash = (): Tab => {
+  const h = window.location.hash.slice(1);
+  return (TABS.find((t) => t.id === h)?.id ?? 'today') as Tab;
+};
 
-  // Navigation State with URL Hash Synchronization & Direct Access
-  const getInitialTab = (): AppNavigationTab => {
-    try {
-      const hash = window.location.hash.replace('#', '').trim();
-      const validTabs: string[] = [
-        'overview', 'my-farms', 'farm-intelligence', 'intelligence', 'crop-advisor',
-        'crops', 'weather', 'soil', 'satellite', 'farm-health', 'photo-analysis',
-        'markets', 'market', 'economics', 'simulator', 'risk', 'risks', 'ai-advisor',
-        'alerts', 'reports', 'knowledge', 'settings', 'landing', 'login', 'signup',
-        'forgot-password', 'onboarding'
-      ];
-      if (hash && validTabs.includes(hash)) {
-        return hash as AppNavigationTab;
-      }
-    } catch {
-      // fallback
-    }
-    return 'overview';
-  };
+export const SAMPLE_FARM = (): Farm => ({
+  id: 'sample',
+  name: 'Sample: maize near Ibadan',
+  lat: 7.4258,
+  lng: 3.9318,
+  placeName: 'Ibadan, Oyo State',
+  crop: 'maize',
+  plantingDate: addDays(localToday(), -38),
+  maturity: 'medium',
+  sizeHa: 2,
+  water: 'rainfed',
+  createdAt: new Date().toISOString(),
+});
 
-  const [activeTab, setActiveTab] = useState<AppNavigationTab>(getInitialTab);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+export function App() {
+  const [farms, setFarms] = useState<Farm[]>(() => load(KEYS.farms, []));
+  const [activeId, setActiveId] = useState<string | null>(() => load(KEYS.active, null));
+  const [mode, setMode] = useState<'app' | 'new' | 'edit'>('app');
+  const [done, setDone] = useState<Set<string>>(() => new Set(load<string[]>(KEYS.done, [])));
 
-  // Sync state with URL hash and support browser back/forward
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '').trim();
-      if (hash && hash !== activeTab) {
-        setActiveTab(hash as AppNavigationTab);
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('popstate', handleHashChange);
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('popstate', handleHashChange);
-    };
-  }, [activeTab]);
+  useEffect(() => { save(KEYS.farms, farms); }, [farms]);
+  useEffect(() => { save(KEYS.active, activeId); }, [activeId]);
 
-  useEffect(() => {
-    if (window.location.hash.replace('#', '') !== activeTab) {
-      window.location.hash = activeTab;
-    }
-  }, [activeTab]);
+  const farm = farms.find((f) => f.id === activeId) ?? farms[0] ?? null;
 
-  // Judge Presentation Mode
-  const [judgeMode, setJudgeMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('nexus_judge_mode') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  // Farms State
-  const [farms, setFarms] = useState<Farm[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_farms_cache');
-      return saved ? JSON.parse(saved) : MOCK_FARMS;
-    } catch {
-      return MOCK_FARMS;
-    }
-  });
-
-  const [activeFarmId, setActiveFarmId] = useState<string>(() => {
-    return farms[0]?.id || MOCK_FARMS[0].id;
-  });
-
-  // Weather & Alerts
-  const [weather] = useState<WeatherData>(MOCK_WEATHER);
-  const [alerts, setAlerts] = useState<AlertNotification[]>(() => {
-    try {
-      const saved = localStorage.getItem('nexus_alerts_cache');
-      return saved ? JSON.parse(saved) : MOCK_ALERTS;
-    } catch {
-      return MOCK_ALERTS;
-    }
-  });
-
-  // Online / Offline Status
-  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
-
-  // Modals
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const [isStoryTourOpen, setIsStoryTourOpen] = useState(false);
-  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
-  const [showFirstSession, setShowFirstSession] = useState(false);
-
-  // Listen to network status
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  // Keyboard shortcut: Cmd+K / Ctrl+K for Global Search
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setIsSearchOpen((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Persist farms to local storage
-  useEffect(() => {
-    try {
-      localStorage.setItem('nexus_farms_cache', JSON.stringify(farms));
-    } catch (e) {
-      console.warn('Failed to cache farms to localStorage', e);
-    }
-  }, [farms]);
-
-  // Persist alerts to local storage
-  useEffect(() => {
-    try {
-      localStorage.setItem('nexus_alerts_cache', JSON.stringify(alerts));
-    } catch (e) {
-      console.warn('Failed to cache alerts to localStorage', e);
-    }
-  }, [alerts]);
-
-  // Persist judge mode
-  useEffect(() => {
-    try {
-      localStorage.setItem('nexus_judge_mode', judgeMode ? 'true' : 'false');
-    } catch (e) {
-      console.warn('Failed to cache judge mode', e);
-    }
-  }, [judgeMode]);
-
-  const activeFarm = farms.find((f) => f.id === activeFarmId) || farms[0] || MOCK_FARMS[0];
-
-  // Alert Actions
-  const handleMarkAlertRead = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, read: true } : a))
-    );
-  };
-
-  const handleMarkAllAlertsRead = () => {
-    setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
-  };
-
-  // Farm Actions
-  const handleAddFarm = (newFarm: Farm) => {
-    setFarms((prev) => [newFarm, ...prev]);
-    setActiveFarmId(newFarm.id);
-  };
-
-  const handleUpdateFarm = (updatedFarm: Farm) => {
-    setFarms((prev) => prev.map((f) => (f.id === updatedFarm.id ? updatedFarm : f)));
-  };
-
-  const handleDeleteFarm = (id: string) => {
-    setFarms((prev) => {
-      const filtered = prev.filter((f) => f.id !== id);
-      if (activeFarmId === id && filtered.length > 0) {
-        setActiveFarmId(filtered[0].id);
-      }
-      return filtered;
+  const toggleDone = useCallback((k: string) => {
+    setDone((prev) => {
+      const next = new Set(prev);
+      next.has(k) ? next.delete(k) : next.add(k);
+      save(KEYS.done, [...next].slice(-500));
+      return next;
     });
+  }, []);
+
+  const upsert = (f: Farm) => {
+    setFarms((fs) => (fs.some((x) => x.id === f.id) ? fs.map((x) => (x.id === f.id ? f : x)) : [...fs, f]));
+    setActiveId(f.id);
+    setMode('app');
   };
 
-  const handleResetDemoData = () => {
-    setFarms(MOCK_FARMS);
-    setActiveFarmId(MOCK_FARMS[0].id);
-    setAlerts(MOCK_ALERTS);
-    try {
-      localStorage.removeItem('nexus_farms_cache');
-      localStorage.removeItem('nexus_alerts_cache');
-    } catch (e) {
-      console.warn('Failed to reset localStorage', e);
+  if (mode === 'new' || mode === 'edit' || !farm) {
+    if (!farm && mode === 'app') {
+      return <Welcome onStart={() => setMode('new')} onSample={() => upsert(SAMPLE_FARM())} />;
     }
-  };
-
-  const handleToggleJudgeMode = () => {
-    setJudgeMode((prev) => !prev);
-  };
-
-  const handleUpdateSoilSource = (source: 'laboratory' | 'geospatial_estimate') => {
-    setFarms((prev) =>
-      prev.map((f) =>
-        f.id === activeFarm.id
-          ? {
-              ...f,
-              soil: {
-                ...f.soil,
-                source,
-                labConfidenceScore: source === 'laboratory' ? 96 : undefined,
-              },
-            }
-          : f
-      )
-    );
-  };
-
-  const handleLaunchJudgeMode = () => {
-    setJudgeMode(true);
-    quickDemoLogin('judge');
-    setActiveFarmId(MOCK_FARMS[0].id);
-    setActiveTab('overview');
-  };
-
-  const unreadAlertCount = alerts.filter((a) => !a.read).length;
-
-  const handleNavigate = (route: string) => {
-    setActiveTab(route as AppNavigationTab);
-  };
-
-  // Render dedicated Full-Screen Auth & Onboarding Routes
-  if (activeTab === 'login') {
-    return <LoginPage onNavigate={handleNavigate} />;
-  }
-
-  if (activeTab === 'signup') {
-    return <SignUpPage onNavigate={handleNavigate} />;
-  }
-
-  if (activeTab === 'forgot-password') {
-    return <ForgotPasswordPage onNavigate={handleNavigate} />;
-  }
-
-  if (activeTab === 'onboarding') {
+    const editing = mode === 'edit' ? farm ?? undefined : undefined;
     return (
-      <OnboardingPage
-        onComplete={(newFarm) => {
-          handleAddFarm(newFarm);
-          setShowFirstSession(true);
-          setActiveTab('overview');
-        }}
-        onNavigate={handleNavigate}
-      />
+      <div className="mx-auto max-w-3xl px-4 pb-16 pt-6 sm:px-6">
+        <Logo />
+        <h1 className="mb-8 mt-8 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{editing ? `Edit ${editing.name}` : 'Add a field'}</h1>
+        <Suspense fallback={<div className="skeleton h-80" />}>
+        <FarmForm
+          key={editing?.id ?? 'new'}
+          initial={editing}
+          onSave={upsert}
+          onCancel={() => setMode('app')}
+          onDelete={
+            editing
+              ? () => {
+                  setFarms((fs) => fs.filter((x) => x.id !== editing.id));
+                  remove(KEYS.chat(editing.id));
+                  setActiveId(null);
+                  setMode('app');
+                }
+              : undefined
+          }
+        />
+        </Suspense>
+      </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-neutral-950">
-      {/* Offline Toast Banner if disconnected */}
-      {!isOnline && (
-        <div className="bg-amber-500 text-neutral-950 px-4 py-1.5 text-xs font-bold text-center flex items-center justify-center gap-2 sticky top-0 z-50">
-          <span>You are currently in Offline Field Mode. Cached telemetry and offline models are active.</span>
-        </div>
-      )}
+    <Shell
+      key={farm.id}
+      farm={farm}
+      farms={farms}
+      done={done}
+      toggleDone={toggleDone}
+      onSwitch={setActiveId}
+      onAdd={() => setMode('new')}
+      onEdit={() => setMode('edit')}
+      onUpdateFarm={(patch) => upsert({ ...farm, ...patch })}
+    />
+  );
+}
 
-      {/* Main Top Header */}
-      <Header
-        activeFarm={activeFarm}
-        farms={farms}
-        onSelectFarm={(farm) => setActiveFarmId(farm.id)}
-        onOpenAddFarm={() => setActiveTab('onboarding')}
-        onOpenOnboarding={() => setActiveTab('onboarding')}
-        onOpenSearch={() => setIsSearchOpen(true)}
-        onOpenVoice={() => setIsVoiceOpen(true)}
-        onOpenDemoStory={() => setIsStoryTourOpen(true)}
-        onOpenStoryTour={() => setIsStoryTourOpen(true)}
-        onOpenDecisionSynthesis={() => setIsDecisionModalOpen(true)}
-        unreadAlertsCount={unreadAlertCount}
-        onNavigateAlerts={() => setActiveTab('alerts')}
-        onNavigate={setActiveTab}
-        isOnline={isOnline}
-        judgeMode={judgeMode}
-      />
+interface ShellProps {
+  farm: Farm;
+  farms: Farm[];
+  done: Set<string>;
+  toggleDone: (k: string) => void;
+  onSwitch: (id: string) => void;
+  onAdd: () => void;
+  onEdit: () => void;
+  onUpdateFarm: (patch: Partial<Farm>) => void;
+}
 
-      {/* Hackathon Judge Presentation Bar */}
-      {judgeMode && (
-        <JudgePresentationBar
-          currentTab={activeTab}
-          onNavigate={setActiveTab}
-          onExitJudgeMode={() => setJudgeMode(false)}
-          onResetDemoData={handleResetDemoData}
-        />
-      )}
+function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdateFarm }: ShellProps) {
+  const [tab, setTab] = useState<Tab>(tabFromHash);
+  const ins = useInsights(farm, done);
+  const [online, setOnline] = useState(navigator.onLine);
 
-      {/* App Workspace: Sidebar + Dynamic Page Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Collapsible Sidebar */}
-        <Sidebar
-          activeTab={activeTab}
-          onSelectTab={setActiveTab}
-          unreadAlertsCount={unreadAlertCount}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
+  useEffect(() => {
+    const onHash = () => setTab(tabFromHash());
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('hashchange', onHash);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
 
-        {/* Dynamic Page Content Viewport */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-12 max-w-7xl mx-auto w-full">
-          {activeTab === 'overview' && (
-            <OverviewDashboard
-              activeFarm={activeFarm}
-              farms={farms}
-              weather={weather}
-              alerts={alerts}
-              onNavigate={setActiveTab}
-              onOpenVoice={() => setIsVoiceOpen(true)}
-              onOpenDemoStory={() => setIsStoryTourOpen(true)}
-              onOpenDecisionSynthesis={() => setIsDecisionModalOpen(true)}
-            />
-          )}
+  const go = (t: Tab) => {
+    if (t !== tab) {
+      window.location.hash = t;
+      setTab(t);
+      window.scrollTo({ top: 0 });
+    }
+  };
 
-          {activeTab === 'my-farms' && (
-            <MyFarmsPage
-              farms={farms}
-              activeFarm={activeFarm}
-              onSelectFarm={(farm) => {
-                setActiveFarmId(farm.id);
-                setActiveTab('overview');
-              }}
-              onOpenAddFarm={() => setActiveTab('onboarding')}
-              onDeleteFarm={handleDeleteFarm}
-              onUpdateFarm={handleUpdateFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
+  const loading = ins.weather.status === 'loading';
+  const screen = useMemo(() => {
+    switch (tab) {
+      case 'weather':
+        return <Weather ins={ins} />;
+      case 'field':
+        return <Field farm={farm} ins={ins} onUpdateFarm={onUpdateFarm} />;
+      case 'money':
+        return <Money farm={farm} />;
+      case 'ask':
+        return <Ask farm={farm} ins={ins} />;
+      default:
+        return <Today farm={farm} ins={ins} done={done} toggleDone={toggleDone} />;
+    }
+  }, [tab, farm, ins, done, toggleDone, onUpdateFarm]);
 
-          {(activeTab === 'farm-intelligence' || activeTab === 'intelligence') && (
-            <FarmIntelligencePage
-              activeFarm={activeFarm}
-              weather={weather}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {(activeTab === 'crop-advisor' || activeTab === 'crops') && (
-            <CropAdvisorPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-              onUpdateFarm={handleUpdateFarm}
-            />
-          )}
-
-          {activeTab === 'weather' && (
-            <WeatherPage
-              activeFarm={activeFarm}
-              weather={weather}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'soil' && (
-            <SoilPage
-              activeFarm={activeFarm}
-              onUpdateSoilSource={handleUpdateSoilSource}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'satellite' && (
-            <SatellitePage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'farm-health' && (
-            <FarmHealthPage
-              activeFarm={activeFarm}
-              weather={weather}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'photo-analysis' && (
-            <PhotoAnalysisPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {(activeTab === 'markets' || activeTab === 'market') && (
-            <MarketIntelligencePage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'economics' && (
-            <FarmEconomicsPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'simulator' && (
-            <ScenarioSimulatorPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {(activeTab === 'risk' || activeTab === 'risks') && (
-            <RiskCenterPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'ai-advisor' && (
-            <AiAdvisorPage
-              activeFarm={activeFarm}
-              weather={weather}
-              onOpenVoice={() => setIsVoiceOpen(true)}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'alerts' && (
-            <AlertsCenterPage
-              alerts={alerts}
-              onMarkRead={handleMarkAlertRead}
-              onMarkAllRead={handleMarkAllAlertsRead}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'reports' && (
-            <FarmReportsPage
-              activeFarm={activeFarm}
-              weather={weather}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'knowledge' && (
-            <KnowledgeCenterPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'settings' && (
-            <SettingsPage
-              activeFarm={activeFarm}
-              farms={farms}
-              onSelectFarm={(farm) => setActiveFarmId(farm.id)}
-              judgeMode={judgeMode}
-              onToggleJudgeMode={handleToggleJudgeMode}
-              onResetDemoData={handleResetDemoData}
-              onNavigate={setActiveTab}
-            />
-          )}
-
-          {activeTab === 'landing' && (
-            <LandingPage
-              activeFarm={activeFarm}
-              onNavigate={setActiveTab}
-              onOpenOnboarding={() => setActiveTab('onboarding')}
-              onOpenDemoStory={() => setIsStoryTourOpen(true)}
-              onToggleJudgeMode={handleToggleJudgeMode}
-              judgeMode={judgeMode}
-            />
-          )}
-
-          {![
-            'overview', 'my-farms', 'farm-intelligence', 'intelligence',
-            'crop-advisor', 'crops', 'weather', 'soil', 'satellite',
-            'farm-health', 'photo-analysis', 'markets', 'market',
-            'economics', 'simulator', 'risk', 'risks', 'ai-advisor',
-            'alerts', 'reports', 'knowledge', 'settings', 'landing',
-          ].includes(activeTab) && (
-            <div className="p-8 sm:p-12 text-center max-w-md mx-auto my-12 bg-neutral-900 border border-neutral-800 rounded-2xl space-y-4 shadow-xl">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-neutral-100">Agricultural Route Not Found</h3>
-                <p className="text-xs text-neutral-400 mt-1">
-                  The requested navigation path <code className="font-mono text-emerald-400">#{activeTab}</code> is not defined.
-                </p>
-              </div>
+  return (
+    <div className="min-h-dvh md:flex">
+      {/* Desktop rail */}
+      <nav className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-line px-3 py-5 md:flex" aria-label="Main">
+        <div className="px-2"><Logo /></div>
+        <ul className="mt-8 space-y-0.5">
+          {TABS.map(({ id, label, Icon }) => (
+            <li key={id}>
               <button
                 type="button"
-                onClick={() => setActiveTab('overview')}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+                onClick={() => go(id)}
+                aria-current={tab === id ? 'page' : undefined}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[15px] font-medium transition-colors ${tab === id ? 'bg-ink text-paper' : 'text-ink-2 hover:bg-card hover:text-ink'}`}
               >
-                Return to Overview Dashboard
+                <Icon className="h-[18px] w-[18px]" aria-hidden /> {label}
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-auto px-2 text-xs leading-relaxed text-ink-3">
+          Data stays on this device.
+        </div>
+      </nav>
+
+      <div className="min-w-0 flex-1">
+        <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur">
+          <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5 sm:px-6">
+            <div className="md:hidden"><Logo compact /></div>
+            <FarmSwitcher farm={farm} farms={farms} onSwitch={onSwitch} onAdd={onAdd} />
+            <button type="button" onClick={onEdit} className="rounded-full p-2 text-ink-3 hover:bg-card hover:text-ink" aria-label={`Edit ${farm.name}`}>
+              <Pencil className="h-4 w-4" />
+            </button>
+            <div className="ml-auto flex items-center gap-1.5 text-xs text-ink-3">
+              {!online && <WifiOff className="h-3.5 w-3.5 text-sun" aria-label="Offline" />}
+              <span className="hidden sm:inline">{ins.weather.savedAt ? `Updated ${ago(ins.weather.savedAt)}` : ''}</span>
+              <button type="button" onClick={ins.refresh} disabled={loading} className="rounded-full p-2 hover:bg-card hover:text-ink" aria-label="Refresh data">
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
-          )}
-        </main>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:px-6 md:pb-16">{screen}</main>
       </div>
 
-      {/* Mobile Fixed Bottom Navigation Bar */}
-      <MobileNav
-        activeTab={activeTab}
-        onSelectTab={setActiveTab}
-        unreadAlertsCount={unreadAlertCount}
-        onOpenVoice={() => setIsVoiceOpen(true)}
-      />
-
-      {/* Global Modals */}
-      <GlobalSearchModal
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        farms={farms}
-        onNavigate={(tab) => {
-          setActiveTab(tab);
-          setIsSearchOpen(false);
-        }}
-        onSelectFarm={(farm) => {
-          setActiveFarmId(farm.id);
-          setActiveTab('overview');
-          setIsSearchOpen(false);
-        }}
-      />
-
-      <VoiceAIModal
-        isOpen={isVoiceOpen}
-        onClose={() => setIsVoiceOpen(false)}
-        activeFarm={activeFarm}
-        onNavigate={(tab) => {
-          setActiveTab(tab);
-          setIsVoiceOpen(false);
-        }}
-      />
-
-      <OnboardingModal
-        isOpen={isOnboardingOpen}
-        onClose={() => setIsOnboardingOpen(false)}
-        onSaveFarm={(newFarm) => {
-          handleAddFarm(newFarm);
-          setIsOnboardingOpen(false);
-        }}
-      />
-
-      <DemoStoryWalkthrough
-        isOpen={isStoryTourOpen}
-        onClose={() => setIsStoryTourOpen(false)}
-        onNavigate={(tab) => {
-          setActiveTab(tab);
-        }}
-        onLaunchJudgeMode={handleLaunchJudgeMode}
-      />
-
-      {/* Signature Decision Synthesis WOW Experience */}
-      <DecisionSynthesisModal
-        isOpen={isDecisionModalOpen}
-        onClose={() => setIsDecisionModalOpen(false)}
-        farm={activeFarm}
-        weather={weather}
-        onNavigate={handleNavigate}
-      />
-
-      {/* 3-Layer First Session Welcome Tour */}
-      <FirstSessionModal
-        isOpen={showFirstSession}
-        onClose={() => setShowFirstSession(false)}
-        farm={activeFarm}
-      />
+      {/* Mobile tab bar */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Main">
+        <ul className="mx-auto flex max-w-md">
+          {TABS.map(({ id, label, Icon }) => (
+            <li key={id} className="flex-1">
+              <button
+                type="button"
+                onClick={() => go(id)}
+                aria-current={tab === id ? 'page' : undefined}
+                className={`flex w-full flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${tab === id ? 'text-leaf' : 'text-ink-3'}`}
+              >
+                <Icon className="h-5 w-5" strokeWidth={tab === id ? 2.4 : 1.8} aria-hidden />
+                {label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </div>
   );
 }
 
-export default function App() {
+function FarmSwitcher({ farm, farms, onSwitch, onAdd }: { farm: Farm; farms: Farm[]; onSwitch: (id: string) => void; onAdd: () => void }) {
+  const [open, setOpen] = useState(false);
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <div className="relative min-w-0">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox" className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-card">
+        <span className="min-w-0">
+          <span className="block truncate text-[15px] font-semibold leading-tight">{farm.name}</span>
+          <span className="block truncate text-xs text-ink-3">{CROPS[farm.crop].name} · {farm.sizeHa} ha{farm.placeName ? ` · ${farm.placeName}` : ''}</span>
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-ink-3" aria-hidden />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <ul role="listbox" className="card absolute left-0 top-full z-40 mt-1 w-72 overflow-hidden p-1 shadow-lg">
+            {farms.map((f) => (
+              <li key={f.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={f.id === farm.id}
+                  onClick={() => { onSwitch(f.id); setOpen(false); }}
+                  className={`w-full rounded-lg px-3 py-2 text-left hover:bg-paper ${f.id === farm.id ? 'bg-paper' : ''}`}
+                >
+                  <span className="block font-medium">{f.name}</span>
+                  <span className="block text-xs text-ink-3">{CROPS[f.crop].name} · {f.sizeHa} ha</span>
+                </button>
+              </li>
+            ))}
+            <li className="mt-1 border-t border-line-2 pt-1">
+              <button type="button" onClick={() => { setOpen(false); onAdd(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-medium text-leaf hover:bg-paper">
+                <Plus className="h-4 w-4" /> Add a field
+              </button>
+            </li>
+          </ul>
+        </>
+      )}
+    </div>
   );
 }

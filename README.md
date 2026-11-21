@@ -1,74 +1,64 @@
-# NEXUS AGRI — AI-Powered Agricultural Intelligence & Decision Platform
+# Nexus Agri
 
-[![Platform: Web & PWA](https://img.shields.io/badge/Platform-Web%20%7C%20PWA-emerald.svg)](https://ai.studio)
-[![Engine: Gemini 3.8 Flash](https://img.shields.io/badge/AI-Gemini%203.8%20Flash-blue.svg)](https://deepmind.google/technologies/gemini/)
-[![Region: Nigeria & Sub-Saharan Africa](https://img.shields.io/badge/Region-Nigeria%20First-green.svg)](#)
+**What your farm needs this week.** Put a field on the map, say what you planted and when, and Nexus Agri turns the live forecast, the soil under that point and the crop's growth stage into a short, dated list of jobs — each with the reason and the numbers behind it.
 
-> **NEXUS AGRI** is a production-grade decision intelligence platform that transforms raw agricultural data into clear, defensible, and actionable farming decisions.
+Built for smallholder farms and extension agents in Nigeria: phone-first, readable in direct sun, small downloads, and it keeps the last plan when the network drops.
 
----
+## What it does
 
-## ⚡ The 3-Minute Hackathon Judge Walkthrough
+| Screen | What you get | Where the numbers come from |
+|---|---|---|
+| **Plan** | This week's jobs, sorted *do now / this week / keep an eye on*. Fertilizer timed for moist soil and away from heavy rain, sprays tied to the next safe window, overdue tasks flagged, tick-off that persists, share to WhatsApp. | Crop calendar (below) + forecast + water balance |
+| **Weather** | Hour-by-hour spray windows for 72 h, 8-day forecast with ET₀, last 30 days of rain against the 10-year normal, monthly rainfall climatology. | Open-Meteo forecast API; ERA5 reanalysis via Open-Meteo archive |
+| **Field** | Daily root-zone water balance (30 days back, 7 ahead) with the crop's stress line; soil pH, texture, organic carbon, N, CEC and usable water, with plain-language findings and lime estimate. Lab results override the estimate. | FAO-56 single-Kc balance; ISRIC SoilGrids 2.0; Saxton & Rawls (2006) pedotransfer |
+| **Money** | Per-hectare budget, margin, break-even yield and price, and a yield × price profit grid. | Your inputs (example figures until you change them) |
+| **Ask** | Questions answered from the farm's computed data, in English, Pidgin, Hausa, Yorùbá or Igbo. Photo check returning ranked candidate causes and the field checks that tell them apart. | Gemini, given only the app's computed context |
 
-1. **Launch**: Open the app. The landing page allows immediate entry via **"Quick Demo"** or **"Judge Mode"** (bypass authentication with pre-seeded agronomic credentials).
-2. **Explore the Farm Context**:
-   - The top navigation bar displays the active farm (**Green Valley Farm, Oyo Basin**). Switch between Nigerian agro-ecological zones (Oyo, Kaduna, Benue).
-   - View the **Multi-Stream Intelligence Ribbon**: Live weather window, soil moisture, Sentinel-2 NDVI (0.81), AFEX commodity price, and composite farm health score (82/100).
-3. **Trigger Decision Synthesis**:
-   - Click **"Run Multi-Stream Decision Synthesis"** on the Overview Dashboard.
-   - Watch the synthesis engine reconcile 7 distinct data feeds: Weather forecast (48mm rain incoming) + Soil moisture (22.4%) + Input costs + Spot prices.
-   - Receive the decisive recommendation: *Hold mechanical irrigation for 48 hours to leverage rainfall; schedule split-fertilizer top-dressing for the calm Friday morning spray window.*
-4. **Inspect "What Changed?" Dynamic Scenario Simulator**:
-   - Navigate to **"Scenario Simulator"**.
-   - Modify rainfall expectation, fertilizer cost, or market price.
-   - Observe immediate, deterministic recalculation of gross margins, break-even yields, and updated tactical advice.
-5. **Test Multimodal Crop Pathology**:
-   - Navigate to **"Crop Photo Analysis"**.
-   - Upload any leaf photo (or choose a pre-loaded sample: Nitrogen Chlorosis, Southern Leaf Blight, or Healthy Canopy).
-   - Receive confidence-scored pathological diagnosis, observable anatomical symptoms, organic remedies, and chemical treatment protocols.
-6. **Export Audit Dossier**:
-   - Navigate to **"Reports & Export"**.
-   - Review the formal agronomic dossier. Download the **structured CSV dataset** or export a verified **JSON backup**.
+Crops: maize, rice, sorghum, soybean, cowpea, tomato, cassava — early, medium or late varieties.
 
----
+## What it deliberately does not do
 
-## 🌾 Core Features & Capabilities
+- **No invented data.** If a source is down the screen says so and shows the last saved copy with its age. There is no "simulated" AI fallback: if Gemini isn't configured, the advisor says it is off and everything else keeps working.
+- **No fake satellite or market feeds.** Free, keyless NDVI and Nigerian market-price APIs don't exist; showing made-up numbers labelled "live" would mislead farmers. Prices are entered by the user.
+- **No accounts.** Farms, ticks and budgets live in the browser's storage on the device.
 
-- **7-Stream Decision Engine**: Ingests Weather (ECMWF), Soil (SoilGrids + Lab), Satellite (Sentinel-2 MSI), Crop Phenology, Markets (AFEX), Economics (9-cost breakdown), and Climate Hazards.
-- **Explainable Decisions**: Every recommendation explains **WHY** (underlying numbers), **ECONOMIC DELTA** (projected margin gain/loss), and **NEXT ACTION** (step-by-step instructions).
-- **Deterministic Financial Engine**: Zero-division-safe calculations of operating margin %, break-even yield (t/ha), and cost-per-hectare in Nigerian Naira (₦).
-- **Voice Intelligence**: Built-in audio readout and speech summaries for hands-free field operations.
-- **PWA & Offline First**: Service worker asset caching and `localStorage` snapshotting ensure reliable operation in rural zones with intermittent connectivity.
-- **Production Security**: Server-side proxy for Gemini 3.8 Flash, in-memory rate limiting, prompt injection defenses, and strict input validation.
+## The agronomy
 
----
+All logic is in `src/lib/` and is plain, tested TypeScript — no AI involved.
 
-## 🛠️ Tech Stack
+- **Crop calendar** (`crops.ts`): stage boundaries and FAO-56 stage lengths/Kc per crop, plus field operations by days after planting with rates in kg/ha *and* 50 kg bags (e.g. maize: basal NPK 15-15-15 8 bags/ha at 0–14 DAP; urea 2½ bags/ha at 28–42 DAP). Rates follow standard Nigerian extension guidance and should be adjusted to a soil test.
+- **Water balance** (`engine/water.ts`): `Dr = Dr − Peff + Ks·Kc·ET0`, root depth growing through development, TAW from soil texture, stress when depletion exceeds `p·TAW`. Forecast rain is weighted by its probability. Initialised from the weather model's soil moisture.
+- **Spray windows** (`engine/spray.ts`): daylight, wind 3–15 km/h (calm = inversion risk), no rain that hour or the 4 h after, ≤30 °C, RH ≥ 40%.
+- **Plan** (`engine/plan.ts`): calendar tasks + weather timing + irrigation amount (mm and m³) + heavy-rain, heat-at-flowering and leaf-wetness disease alerts + rain-onset check before planting.
 
-- **Frontend**: React 18, TypeScript, Tailwind CSS, Lucide Icons, Vite
-- **Backend**: Express (Node.js), Vite middleware in dev, ESBuild CommonJS bundle for production
-- **AI Models**: Google Gemini 3.8 Flash (Multimodal Vision, Tool Synthesis, Text Generation)
-- **Data Visualization**: Responsive SVG sparklines, multispectral satellite index gauges, geospatial farm polygon renderers
-- **Standards**: PWA (Service Worker, Web App Manifest), Schema.org JSON-LD structured data, WCAG AA contrast compliance
+## Run it
 
----
-
-## 🚀 Environment Configuration
-
-Create a `.env` file (or configure in AI Studio settings):
-
-```env
-# Google Gemini API Key for AI synthesis and vision
-GEMINI_API_KEY="your-gemini-api-key"
-
-# Application hosting URL (auto-populated in Cloud Run)
-APP_URL="http://localhost:3000"
+```bash
+npm install
+cp .env.example .env    # add GEMINI_API_KEY to enable the advisor (optional)
+npm run dev             # http://localhost:3000
 ```
 
-*Note: If `GEMINI_API_KEY` is not present, NEXUS AGRI automatically activates its deterministic agronomic fallback engine, guaranteeing zero downtime or error popups.*
+```bash
+npm test                # engine + data-normaliser tests
+npm run lint            # strict TypeScript
+npm run build && npm start
+```
 
----
+The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org` and `nominatim.openstreetmap.org`. The browser loads map tiles from `server.arcgisonline.com`.
 
-## 📄 License & Provenance
+## Layout
 
-Built for the Google AI Studio Hackathon. All satellite, weather, and soil indices cite official open data repositories: ESA Copernicus, ECMWF, ISRIC World Soil Information, and AFEX Commodities Index.
+```
+server.ts            Express: /api/weather, /climate, /soil, /place, /ask, /diagnose, /health
+server/sources.ts    Upstream fetch, trim (~15 KB weather bundle), cache per location
+server/ai.ts         Gemini prompts with JSON schemas; no fallback answers
+src/lib/crops.ts     Crop knowledge base
+src/lib/engine/      stage · water · spray · soil · plan · economics
+src/screens/         Today (Plan) · Weather · Field · Money · Ask · FarmForm · Welcome
+tests/               Vitest suites and weather fixtures
+```
+
+## Data sources and licences
+
+Open-Meteo (CC BY 4.0) · ERA5 / Copernicus Climate Change Service · ISRIC SoilGrids 2.0 (CC BY 4.0) · OpenStreetMap Nominatim (ODbL) · Esri World Imagery · FAO Irrigation and Drainage Paper 56 (Allen et al., 1998) · Saxton & Rawls, SSSAJ 70:1569 (2006).
