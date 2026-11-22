@@ -130,7 +130,7 @@ export async function handleApi(req: ApiRequest): Promise<ApiResponse> {
     return await fn(req);
   } catch (e) {
     if (e instanceof AiUnavailable) {
-      return { status: 503, body: { error: 'ai_not_configured', message: 'The AI advisor is not set up on this server (GEMINI_API_KEY missing).' } };
+      return { status: 503, body: { error: 'ai_not_configured', message: 'The AI advisor is not set up on this server (ANTHROPIC_API_KEY missing).' } };
     }
     if (e instanceof AiFailed) return { status: 502, body: { error: 'ai_failed', message: e.message } };
     if (e instanceof UpstreamError) return { status: 502, body: { error: 'upstream', source: e.source, message: e.message } };

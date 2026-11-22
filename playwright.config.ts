@@ -25,7 +25,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npx tsx server.ts',
-    env: { PORT: '3123', GEMINI_API_KEY: '' },
+    env: { PORT: '3123', ANTHROPIC_API_KEY: '' },
     url: 'http://localhost:3123/api/health',
     reuseExistingServer: true,
     timeout: 60_000,

@@ -3,7 +3,7 @@
  * weather, climate, soil, place). The static app is served by Vercel's Vite
  * build; this function adds the server half. Logic lives in server/handlers.ts.
  *
- * Set GEMINI_API_KEY (and optionally GEMINI_MODEL) in the Vercel project's
+ * Set ANTHROPIC_API_KEY (and optionally ANTHROPIC_MODEL) in the Vercel project's
  * Environment Variables to turn on the AI advisor.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
