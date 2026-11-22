@@ -74,7 +74,7 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
 
       <Section title="Entries" id="entries" aside={records.length ? `${records.length}` : undefined}>
         {sorted.length === 0 ? (
-          <p className="card p-5 text-[15px] text-ink-2">No entries yet. Start with what you've already spent this season — seed, fertilizer, land preparation.</p>
+          <p className="card p-5 text-[15px] text-ink-2">No entries yet. Start with what you've already spent this season — seed, fertilizer, land preparation. Quicker from now on: tick a job off on the Plan tab and it asks what it cost.</p>
         ) : (
           <ul className="card divide-y divide-line-2">
             {sorted.map((r) => (

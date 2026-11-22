@@ -21,11 +21,11 @@ const fresh = (farm: Farm): Stored => ({ ...structuredClone(CROPS[farm.crop].exa
 
 type View = 'budget' | 'shop' | 'records' | 'store';
 
-export function Money({ farm, ins }: { farm: Farm; ins: Insights }) {
+export function Money({ farm, ins, initialView }: { farm: Farm; ins: Insights; initialView?: View }) {
   const storageKey = KEYS.budget(`${farm.id}:${farm.crop}`);
   const [b, setB] = useState<Stored>(() => load(storageKey, fresh(farm)));
   useEffect(() => { setB(load(storageKey, fresh(farm))); }, [storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [view, setView] = useState<View>('budget');
+  const [view, setView] = useState<View>(initialView ?? 'budget');
   const market = useMarketPrice(farm.crop, farm.lat, farm.lng);
   const update = (patch: Partial<Stored>) => {
     const next = { ...b, ...patch, edited: true };
@@ -55,7 +55,7 @@ export function Money({ farm, ins }: { farm: Farm; ins: Insights }) {
       </div>
       <div key={view} className="[animation:rise_380ms_var(--ease-out)_both]">
         {view === 'budget' && <BudgetView farm={farm} b={b} update={update} reset={reset} market={market} />}
-        {view === 'shop' && <ShoppingView farm={farm} ins={ins} />}
+        {view === 'shop' && <ShoppingView farm={farm} ins={ins} onRecord={() => setView('records')} />}
         {view === 'records' && <RecordsView farm={farm} budget={b} />}
         {view === 'store' && <StoreView farm={farm} budget={b} market={market} />}
       </div>

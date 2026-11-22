@@ -17,6 +17,8 @@ import { Ask } from './screens/Ask';
 // The farm form carries Leaflet (~45 KB gzip); load it only when a field is being set up.
 const FarmForm = lazy(() => import('./screens/FarmForm').then((m) => ({ default: m.FarmForm })));
 
+import { NavContext, type Intent } from './lib/nav';
+
 type Tab = 'today' | 'weather' | 'field' | 'money' | 'ask';
 const TABS: { id: Tab; label: string; Icon: typeof CalendarCheck }[] = [
   { id: 'today', label: 'Plan', Icon: CalendarCheck },
@@ -189,11 +191,18 @@ interface ShellProps {
 
 function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdateFarm, onHome }: ShellProps) {
   const [tab, setTab] = useState<Tab>(tabFromHash);
+  // Landing instructions from the screen that sent you here; `visit` remounts
+  // the target screen so it picks them up even if it is already open.
+  const [intent, setIntent] = useState<Intent | null>(null);
+  const [visit, setVisit] = useState(0);
   const ins = useInsights(farm, done);
   const [online, setOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    const onHash = () => setTab(tabFromHash());
+    const onHash = () => {
+      setIntent(null);
+      setTab(tabFromHash());
+    };
     const on = () => setOnline(true);
     const off = () => setOnline(false);
     window.addEventListener('hashchange', onHash);
@@ -206,12 +215,19 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
     };
   }, []);
 
-  const go = (t: Tab) => {
+  const go = (t: Tab, next?: Intent) => {
+    setIntent(next ?? null);
     if (t !== tab) {
-      window.location.hash = t;
+      if (t === 'today') history.replaceState(null, '', window.location.pathname + window.location.search);
+      else history.pushState(null, '', `#${t}`);
       setTab(t);
-      window.scrollTo({ top: 0 });
     }
+    setVisit((v) => v + 1);
+    if (next?.scrollTo) {
+      const id = next.scrollTo;
+      // Wait for the screen to render, then bring the target into view.
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+    } else window.scrollTo({ top: 0 });
   };
 
   const loading = ins.weather.status === 'loading';
@@ -222,13 +238,13 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
       case 'field':
         return <Field farm={farm} ins={ins} onUpdateFarm={onUpdateFarm} />;
       case 'money':
-        return <Money farm={farm} ins={ins} />;
+        return <Money farm={farm} ins={ins} initialView={intent?.money} />;
       case 'ask':
-        return <Ask farm={farm} ins={ins} />;
+        return <Ask farm={farm} ins={ins} initialQuestion={intent?.ask} initialMode={intent?.askMode} />;
       default:
         return <Today farm={farm} ins={ins} done={done} toggleDone={toggleDone} />;
     }
-  }, [tab, farm, ins, done, toggleDone, onUpdateFarm]);
+  }, [tab, farm, ins, done, toggleDone, onUpdateFarm, intent]);
 
   return (
     <div className="min-h-dvh md:flex">
@@ -274,7 +290,9 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
         </header>
 
         <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:px-6 md:pb-16">
-          <div key={tab} className="page-enter">{screen}</div>
+          <NavContext.Provider value={{ go }}>
+            <div key={`${tab}:${visit}`} className="page-enter">{screen}</div>
+          </NavContext.Provider>
         </main>
       </div>
 
