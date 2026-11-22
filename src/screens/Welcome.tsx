@@ -1,7 +1,10 @@
-import { CloudRain, Droplets, SprayCan, Sprout } from 'lucide-react';
+import { ArrowRight, CloudRain, Droplets, Plus, SprayCan, Sprout } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { CropGlyph } from '../components/CropGlyph';
-import { CROPS } from '../lib/crops';
+import { CROPS, scaledCrop } from '../lib/crops';
+import type { Farm } from '../lib/types';
+import { stageFor } from '../lib/engine/stage';
+import { localToday } from '../lib/dates';
 
 /** One maize season, drawn from the real crop table: the jobs the app would hand you at each point. */
 const SEASON = [
@@ -12,7 +15,8 @@ const SEASON = [
   { dap: 116, job: 'Harvest & dry', day: 'Day 116' },
 ];
 
-export function Welcome({ onStart, onSample }: { onStart: () => void; onSample: () => void }) {
+export function Welcome({ farms = [], onStart, onSample, onContinue }: { farms?: Farm[]; onStart: () => void; onSample: () => void; onContinue?: (id: string) => void }) {
+  const hasSample = farms.some((f) => f.id === 'sample');
   return (
     <div className="mx-auto flex min-h-dvh max-w-4xl flex-col px-5 pb-10 pt-8 sm:px-8 sm:pt-12">
       <div className="[animation:fade_500ms_ease_both]"><Logo /></div>
@@ -29,10 +33,38 @@ export function Welcome({ onStart, onSample }: { onStart: () => void; onSample: 
         <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-2 [animation:rise_700ms_var(--ease-out)_both_260ms]">
           Put your field on the map and tell us what you planted. Nexus Agri reads the forecast, the soil and your crop's growth stage, and gives you a short list of jobs — with the day to do each one and the reason why.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3 [animation:rise_700ms_var(--ease-out)_both_340ms]">
-          <button type="button" className="btn btn-primary press px-6 py-3 text-base shadow-[0_8px_24px_-12px_var(--color-leaf)]" onClick={onStart}>Set up my farm</button>
-          <button type="button" className="btn btn-ghost press px-6 py-3 text-base" onClick={onSample}>Try a sample farm</button>
-        </div>
+        {farms.length > 0 && onContinue ? (
+          <div className="mt-8 space-y-3 [animation:rise_700ms_var(--ease-out)_both_340ms]">
+            <p className="eyebrow">Your fields</p>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {farms.map((f) => {
+                const st = stageFor(scaledCrop(f.crop, f.maturity), f.plantingDate, localToday());
+                return (
+                  <li key={f.id}>
+                    <button type="button" onClick={() => onContinue(f.id)} className="card press lift flex w-full items-center gap-3 p-4 text-left">
+                      <div className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold">{f.name}</span>
+                        <span className="block truncate text-sm text-ink-2">
+                          {CROPS[f.crop].name} · {st.status === 'not-planted' ? `planting in ${-st.dap} days` : st.status === 'mature' ? 'mature' : `day ${st.dap}, ${st.name.toLowerCase()}`}
+                        </span>
+                      </div>
+                      <ArrowRight className="h-5 w-5 shrink-0 text-leaf" aria-hidden />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" className="btn btn-ghost press" onClick={onStart}><Plus className="h-4 w-4" aria-hidden /> Add a field</button>
+              {!hasSample && <button type="button" className="btn press text-ink-2 hover:text-ink" onClick={onSample}>Try a sample farm</button>}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-8 flex flex-wrap gap-3 [animation:rise_700ms_var(--ease-out)_both_340ms]">
+            <button type="button" className="btn btn-primary press px-6 py-3 text-base shadow-[0_8px_24px_-12px_var(--color-leaf)]" onClick={onStart}>Set up my farm</button>
+            <button type="button" className="btn btn-ghost press px-6 py-3 text-base" onClick={onSample}>Try a sample farm</button>
+          </div>
+        )}
 
         <figure className="mt-14 [animation:fade_800ms_ease_both_400ms]" aria-label="A maize season from sowing to harvest">
           <div className="relative">

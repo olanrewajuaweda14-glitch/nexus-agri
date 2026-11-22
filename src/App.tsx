@@ -26,6 +26,26 @@ const TABS: { id: Tab; label: string; Icon: typeof CalendarCheck }[] = [
   { id: 'ask', label: 'Ask', Icon: MessageCircle },
 ];
 
+const clearHash = () => {
+  if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+};
+
+/**
+ * True on a fresh open of the app (new tab, home-screen launch), false on a
+ * reload within the same tab. Worked out once per page load — outside React,
+ * because StrictMode runs state initialisers twice.
+ */
+const FRESH_OPEN = (() => {
+  try {
+    if (sessionStorage.getItem('na:session')) return false;
+    sessionStorage.setItem('na:session', '1');
+  } catch {
+    /* storage blocked: treat every load as a fresh open */
+  }
+  return true;
+})();
+if (FRESH_OPEN) clearHash();
+
 const tabFromHash = (): Tab => {
   const h = window.location.hash.slice(1);
   return (TABS.find((t) => t.id === h)?.id ?? 'today') as Tab;
@@ -48,7 +68,21 @@ export const SAMPLE_FARM = (): Farm => ({
 export function App() {
   const [farms, setFarms] = useState<Farm[]>(() => load(KEYS.farms, []));
   const [activeId, setActiveId] = useState<string | null>(() => load(KEYS.active, null));
-  const [mode, setMode] = useState<'app' | 'new' | 'edit'>('app');
+  // A fresh open always starts on the welcome page; a reload keeps your place.
+  const [mode, setMode] = useState<'welcome' | 'app' | 'new' | 'edit'>(FRESH_OPEN ? 'welcome' : 'app');
+  // Where Cancel on the add-field form returns to.
+  const [formFrom, setFormFrom] = useState<'welcome' | 'app'>('app');
+  const goHome = () => {
+    clearHash();
+    setMode('welcome');
+    window.scrollTo({ top: 0 });
+  };
+  const openFarm = (id: string) => {
+    clearHash(); // land on the Plan tab, not wherever you were last time
+    setActiveId(id);
+    setMode('app');
+    window.scrollTo({ top: 0 });
+  };
   const [done, setDone] = useState<Set<string>>(() => new Set(load<string[]>(KEYS.done, [])));
 
   useEffect(() => { save(KEYS.farms, farms); }, [farms]);
@@ -71,10 +105,24 @@ export function App() {
     setMode('app');
   };
 
+  if (mode === 'welcome' || (!farm && mode === 'app')) {
+    return (
+      <Welcome
+        farms={farms}
+        onStart={() => {
+          setFormFrom('welcome');
+          setMode('new');
+        }}
+        onSample={() => {
+          clearHash();
+          upsert(farms.find((f) => f.id === 'sample') ?? SAMPLE_FARM());
+        }}
+        onContinue={openFarm}
+      />
+    );
+  }
+
   if (mode === 'new' || mode === 'edit' || !farm) {
-    if (!farm && mode === 'app') {
-      return <Welcome onStart={() => setMode('new')} onSample={() => upsert(SAMPLE_FARM())} />;
-    }
     const editing = mode === 'edit' ? farm ?? undefined : undefined;
     return (
       <div className="mx-auto max-w-3xl px-4 pb-16 pt-6 sm:px-6">
@@ -85,7 +133,7 @@ export function App() {
           key={editing?.id ?? 'new'}
           initial={editing}
           onSave={upsert}
-          onCancel={() => setMode('app')}
+          onCancel={() => setMode(editing ? 'app' : formFrom)}
           onDelete={
             editing
               ? () => {
@@ -116,9 +164,13 @@ export function App() {
       done={done}
       toggleDone={toggleDone}
       onSwitch={setActiveId}
-      onAdd={() => setMode('new')}
+      onAdd={() => {
+        setFormFrom('app');
+        setMode('new');
+      }}
       onEdit={() => setMode('edit')}
       onUpdateFarm={(patch) => upsert({ ...farm, ...patch })}
+      onHome={goHome}
     />
   );
 }
@@ -132,9 +184,10 @@ interface ShellProps {
   onAdd: () => void;
   onEdit: () => void;
   onUpdateFarm: (patch: Partial<Farm>) => void;
+  onHome: () => void;
 }
 
-function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdateFarm }: ShellProps) {
+function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdateFarm, onHome }: ShellProps) {
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const ins = useInsights(farm, done);
   const [online, setOnline] = useState(navigator.onLine);
@@ -181,7 +234,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
     <div className="min-h-dvh md:flex">
       {/* Desktop rail */}
       <nav className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r border-line px-3 py-5 md:flex" aria-label="Main">
-        <div className="px-2"><Logo /></div>
+        <button type="button" onClick={onHome} className="rounded-lg px-2 py-1 text-left hover:bg-card" aria-label="Nexus Agri — home page"><Logo /></button>
         <ul className="relative mt-8 space-y-0.5">
           <li aria-hidden className="pointer-events-none absolute inset-x-0 top-0.5 h-11 rounded-lg bg-ink transition-transform duration-[380ms]" style={{ transform: `translateY(${TABS.findIndex((t) => t.id === tab) * 46}px)`, transitionTimingFunction: 'var(--ease-out)' }} />
           {TABS.map(({ id, label, Icon }) => (
@@ -205,7 +258,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur">
           <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5 sm:px-6">
-            <div className="md:hidden"><Logo compact /></div>
+            <button type="button" onClick={onHome} className="rounded-lg p-0.5 md:hidden" aria-label="Nexus Agri — home page"><Logo compact /></button>
             <FarmSwitcher farm={farm} farms={farms} onSwitch={onSwitch} onAdd={onAdd} />
             <button type="button" onClick={onEdit} className="rounded-full p-2 text-ink-3 hover:bg-card hover:text-ink" aria-label={`Edit ${farm.name}`}>
               <Pencil className="h-4 w-4" />
