@@ -107,7 +107,7 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
                   <h3 className={`eyebrow w-fit rounded px-1.5 py-0.5 ${PRIORITY_TONE[p].chip}`}>{PRIORITY_TONE[p].label}</h3>
                   {items.map((a, i) => (
                     <div key={a.id} style={{ ['--i' as string]: i + 1 }}>
-                      <ActionCard action={a} done={isDone(a)} onToggle={() => toggleDone(key(farm, a.id))} defaultOpen={p === 'now' && i === 0 && !isDone(a)} />
+                      <ActionCard action={a} farm={farm} done={isDone(a)} onToggle={() => toggleDone(key(farm, a.id))} defaultOpen={p === 'now' && i === 0 && !isDone(a)} />
                     </div>
                   ))}
                 </div>

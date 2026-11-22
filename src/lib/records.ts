@@ -1,4 +1,5 @@
 import type { Budget, Farm } from './types';
+import { load, save } from './storage';
 
 export type RecordKind = 'expense' | 'harvest' | 'sale';
 
@@ -17,6 +18,15 @@ export interface FarmRecord {
 }
 
 export const recordsKey = (farm: Farm) => `na:records:${farm.id}:${farm.plantingDate}`;
+
+export const loadRecords = (farm: Farm) => load<FarmRecord[]>(recordsKey(farm), []);
+
+/** Appends one entry to this planting's record book. */
+export function addRecord(farm: Farm, r: Omit<FarmRecord, 'id'>): FarmRecord {
+  const entry: FarmRecord = { id: `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, ...r };
+  save(recordsKey(farm), [...loadRecords(farm), entry]);
+  return entry;
+}
 
 export interface RecordSummary {
   spent: number;

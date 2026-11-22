@@ -5,7 +5,7 @@ import { Square, Volume2 } from 'lucide-react';
  * Reads text aloud with the phone's built-in voice (no data used).
  * Prefers a Nigerian English voice when the device has one.
  */
-export function ListenButton({ text, label = 'Listen' }: { text: string; label?: string }) {
+export function ListenButton({ text, label = 'Listen', compact = false }: { text: string; label?: string; compact?: boolean }) {
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
   const [speaking, setSpeaking] = useState(false);
 
@@ -33,7 +33,12 @@ export function ListenButton({ text, label = 'Listen' }: { text: string; label?:
   };
 
   return (
-    <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={toggle} aria-pressed={speaking}>
+    <button
+      type="button"
+      className={compact ? 'inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm font-medium text-ink-2 hover:bg-paper hover:text-ink' : 'btn btn-ghost press w-full sm:w-auto'}
+      onClick={toggle}
+      aria-pressed={speaking}
+    >
       {speaking ? <Square className="h-4 w-4 fill-current" aria-hidden /> : <Volume2 className="h-4 w-4" aria-hidden />}
       {speaking ? 'Stop' : label}
     </button>

@@ -5,6 +5,7 @@ import type { Insights } from '../lib/useInsights';
 import { aiStatus, api, ApiError, type AiStatus } from '../lib/data/api';
 import { KEYS, load, save } from '../lib/storage';
 import { Segmented, SourceTag } from '../components/ui';
+import { ListenButton } from '../components/ListenButton';
 
 interface AskReply {
   answer: string;
@@ -62,8 +63,13 @@ const LANGS = [
   { value: 'ig', label: 'Igbo' },
 ];
 
-export function Ask({ farm, ins }: { farm: Farm; ins: Insights }) {
-  const [mode, setMode] = useState<'ask' | 'photo'>('ask');
+export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm; ins: Insights; initialQuestion?: string; initialMode?: 'ask' | 'photo' }) {
+  const [mode, setMode] = useState<'ask' | 'photo'>(initialMode ?? 'ask');
+  // A question handed over from another screen (a job card, a photo result). Chat takes it once.
+  const [prefill, setPrefill] = useState(initialQuestion ?? '');
+  useEffect(() => {
+    if (mode === 'ask' && prefill) setPrefill('');
+  }, [mode, prefill]);
   const [lang, setLang] = useState<string>(() => load(KEYS.lang, 'en'));
   const [status, setStatus] = useState<AiStatus | null>(null);
 
@@ -105,7 +111,11 @@ export function Ask({ farm, ins }: { farm: Farm; ins: Insights }) {
       )}
       {status === 'unreachable' && <p className="rounded-lg bg-sun-soft px-3 py-2 text-sm">Can't reach the server right now — questions will fail until the connection is back.</p>}
 
-      {mode === 'ask' ? <Chat farm={farm} ins={ins} lang={lang} disabled={off} /> : <Photo farm={farm} ins={ins} lang={lang} disabled={off} />}
+      {mode === 'ask' ? (
+        <Chat farm={farm} ins={ins} lang={lang} disabled={off} prefill={prefill} />
+      ) : (
+        <Photo farm={farm} ins={ins} lang={lang} disabled={off} onFollowUp={(text) => { setPrefill(text); setMode('ask'); }} />
+      )}
     </div>
   );
 }
@@ -129,14 +139,30 @@ function buildContext(farm: Farm, ins: Insights) {
   };
 }
 
-function Chat({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: string; disabled: boolean }) {
+const THINKING = ["Reading this week's forecast…", 'Checking soil and water…', "Looking at your crop's stage and jobs…", 'Writing the answer…'];
+
+function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: Insights; lang: string; disabled: boolean; prefill?: string }) {
   const [turns, setTurns] = useState<Turn[]>(() => load(KEYS.chat(farm.id), []));
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(prefill);
+  const input = useRef<HTMLInputElement>(null);
+  const [phase, setPhase] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => { save(KEYS.chat(farm.id), turns.slice(-20)); }, [turns, farm.id]);
+  // A handed-over question: focus the box with the cursor at the end, ready to edit or send.
+  useEffect(() => {
+    if (!prefill || !input.current) return;
+    input.current.focus();
+    input.current.setSelectionRange(prefill.length, prefill.length);
+  }, [prefill]);
+  // Show what the advisor is working through while it thinks.
+  useEffect(() => {
+    if (!busy) return setPhase(0);
+    const t = setInterval(() => setPhase((p) => Math.min(p + 1, THINKING.length - 1)), 3500);
+    return () => clearInterval(t);
+  }, [busy]);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [turns.length, busy]);
 
   const suggestions = [
@@ -190,7 +216,7 @@ function Chat({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: 
         )}
         {busy && (
           <div className="flex items-center gap-2 text-sm text-ink-3">
-            <Loader2 className="h-4 w-4 animate-spin" /> Reading your farm data…
+            <Loader2 className="h-4 w-4 animate-spin" /> <span key={phase} className="[animation:fade_400ms_ease]">{THINKING[phase]}</span>
           </div>
         )}
         {err && <p role="alert" className="text-sm text-clay">{err}</p>}
@@ -199,6 +225,7 @@ function Chat({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: 
 
       <form onSubmit={(e) => { e.preventDefault(); send(q); }} className="sticky bottom-20 z-10 flex gap-2 md:bottom-4">
         <input
+          ref={input}
           className="field flex-1 rounded-full py-3 pl-4 shadow-sm"
           placeholder={disabled ? 'Advisor is off' : 'Type a question…'}
           value={q}
@@ -231,6 +258,7 @@ function Reply({ r }: { r: AskReply }) {
       )}
       {r.missing && <p className="rounded-lg bg-paper px-3 py-2 text-sm text-ink-2"><span className="eyebrow mr-2">Would help to know</span>{r.missing}</p>}
       <div className="flex flex-wrap items-center gap-1.5 border-t border-line-2 pt-3">
+        <ListenButton compact text={[r.answer, ...r.steps].join(' ')} />
         <span className={`eyebrow mr-1 ${r.confidence === 'low' ? 'text-clay' : r.confidence === 'medium' ? 'text-sun' : 'text-leaf'}`}>{r.confidence} confidence</span>
         {r.basedOn?.slice(0, 4).map((b, i) => <SourceTag key={i}>{b}</SourceTag>)}
       </div>
@@ -253,7 +281,7 @@ async function downscale(file: File, max = 1024): Promise<{ base64: string; url:
 
 const LIKELY = { likely: 'bg-clay-soft text-clay', possible: 'bg-sun-soft text-sun', unlikely: 'bg-line-2 text-ink-3' };
 
-function Photo({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang: string; disabled: boolean }) {
+function Photo({ farm, ins, lang, disabled, onFollowUp }: { farm: Farm; ins: Insights; lang: string; disabled: boolean; onFollowUp: (question: string) => void }) {
   const [img, setImg] = useState<{ base64: string; url: string } | null>(null);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -351,6 +379,13 @@ function Photo({ farm, ins, lang, disabled }: { farm: Farm; ins: Insights; lang:
                   <ol className="list-decimal space-y-1 pl-5 text-[15px] text-ink-2">{res.actions.map((c, i) => <li key={i}>{c}</li>)}</ol>
                 </div>
               )}
+              <button
+                type="button"
+                className="btn btn-ghost press w-full sm:w-auto"
+                onClick={() => onFollowUp(`My ${ins.crop.name.toLowerCase()} photo check said: "${res.summary}" (${res.findings.map((f) => `${f.name}: ${f.likelihood}`).join('; ')}). What should I do on my farm this week, and what will it cost?`)}
+              >
+                Ask a follow-up about this
+              </button>
               <p className="text-xs text-ink-3">AI image assessment for {farm.name}. If a large part of the field is affected, show a sample to your extension officer or ADP before spending on chemicals.</p>
             </>
           )}

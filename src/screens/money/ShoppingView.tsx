@@ -16,7 +16,7 @@ const qtyText = (it: ShoppingItem) => {
   return `${it.need.toLocaleString('en-NG')} ${it.unit}`;
 };
 
-export function ShoppingView({ farm, ins }: { farm: Farm; ins: Insights }) {
+export function ShoppingView({ farm, ins, onRecord }: { farm: Farm; ins: Insights; onRecord?: () => void }) {
   const { crop, soilSummary, today } = ins;
   const limeT = soilSummary.ph != null && soilSummary.ph < crop.phRange[0] ? limeRequirement(soilSummary.ph, crop.phRange[0], soilSummary.clayPct) : 0;
   const planted = ins.stage.dap >= 0;
@@ -108,6 +108,11 @@ export function ShoppingView({ farm, ins }: { farm: Farm; ins: Insights }) {
       <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={share}>
         <Share2 className="h-4 w-4" aria-hidden /> Send list to your input dealer
       </button>
+      {onRecord && (
+        <button type="button" className="ml-1 text-sm font-medium text-leaf underline-offset-2 hover:underline sm:ml-3" onClick={onRecord}>
+          Bought it? Record what you paid →
+        </button>
+      )}
       <p className="text-xs leading-relaxed text-ink-3">
         Rates are standard Nigerian extension recommendations for an average field. A soil test can cut fertilizer spending — the Field tab takes lab results. Buy sealed bags from registered dealers; fake and adulterated fertilizer is common.
       </p>

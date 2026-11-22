@@ -478,3 +478,82 @@ test.describe('opening the app', () => {
     await expect(again.getByText('Your fields')).toBeVisible();
   });
 });
+
+test.describe('connected flow', () => {
+  test('job cards lead to the right tool, and Back returns to the plan', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+
+    await page.getByRole('button', { name: /^Top-dress with urea/ }).click();
+    await page.getByRole('button', { name: 'See what to buy' }).click();
+    await expect(page.getByRole('heading', { name: 'What to buy' })).toBeVisible();
+    await expect(page.getByRole('radio', { name: 'Buy list' })).toHaveAttribute('aria-checked', 'true');
+
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: "This week's plan" })).toBeVisible();
+
+    await page.getByRole('button', { name: /^Scout for fall armyworm/ }).click();
+    await page.getByRole('button', { name: 'Check a photo of what you find' }).click();
+    await expect(page.getByRole('radio', { name: 'Check a photo' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  test('spray job opens the mix calculator in view', async ({ page }) => {
+    await mockApi(page);
+    const planted = new Date(Date.now() + 3600_000 - 35 * 864e5).toISOString().slice(0, 10);
+    await page.addInitScript((p) => {
+      localStorage.setItem('na:farms', JSON.stringify([{ id: 'cp', name: 'Cowpea plot', lat: 7.43, lng: 3.93, crop: 'cowpea', plantingDate: p, maturity: 'medium', sizeHa: 1, water: 'rainfed', createdAt: '' }]));
+      localStorage.setItem('na:active', JSON.stringify('cp'));
+      sessionStorage.setItem('na:session', '1');
+    }, planted);
+    await page.goto('/');
+    await page.getByRole('button', { name: /^Insecticide spray at flower-bud stage/ }).click();
+    await page.getByRole('button', { name: 'Mix calculator' }).click();
+    await expect(page.getByRole('heading', { name: 'Mixing the spray' })).toBeInViewport({ timeout: 3000 });
+  });
+
+  test('"Ask about this" opens the advisor with the question written', async ({ page }) => {
+    await mockApi(page, { ai: true });
+    await startSample(page);
+    const card = page.locator('article').filter({ has: page.getByRole('heading', { name: 'Top-dress with urea' }) });
+    await card.getByRole('button', { name: /^Top-dress with urea/ }).click();
+    await card.getByRole('button', { name: 'Ask about this' }).click();
+    await expect(page.getByLabel('Your question')).toHaveValue(/About "Top-dress with urea"/);
+    await expect(page.getByLabel('Your question')).toBeFocused();
+  });
+
+  test('ticking a job asks what it cost and saves it to the record book', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await page.getByRole('button', { name: 'Mark "Top-dress with urea" as done' }).click();
+    const prompt = page.getByRole('form', { name: 'Record Top-dress with urea' });
+    await expect(prompt).toBeVisible();
+    await prompt.getByLabel('Amount spent').fill('252000');
+    await prompt.getByRole('button', { name: 'Save to records' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Saved to your record book' })).toBeVisible();
+    await page.getByRole('button', { name: 'Open it' }).click();
+    await expect(page.getByRole('heading', { name: 'Farm record book' })).toBeVisible();
+    await expect(page.locator('#entries li').filter({ hasText: 'Top-dress with urea' })).toContainText('₦252,000');
+    await expect(page.locator('#entries li').filter({ hasText: 'Top-dress with urea' })).toContainText('Fertilizer');
+  });
+
+  test('photo result leads to a follow-up question; answers can be listened to', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, 'speechSynthesis', { value: { getVoices: () => [], cancel() {}, speak() {} } });
+      (window as any).SpeechSynthesisUtterance = function (this: any, t: string) { this.text = t; };
+    });
+    await mockApi(page, { ai: true });
+    await page.route('**/api/diagnose', (r) => r.fulfill({ json: { usable: true, problemIfUnusable: '', summary: 'Likely nitrogen deficiency.', findings: [{ name: 'Nitrogen deficiency', type: 'nutrient', likelihood: 'likely', evidence: 'V-shaped yellowing' }], confirmBy: [], actions: ['Top-dress'], urgent: false } }));
+    await page.route('**/api/ask', (r) => r.fulfill({ json: { answer: 'Top-dress with urea this week.', steps: ['130 kg/ha'], basedOn: ['day 38'], confidence: 'high', missing: '' } }));
+    await startSample(page);
+    await nav(page, 'Ask');
+    await page.getByRole('radio', { name: 'Check a photo' }).click();
+    const jpeg = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 300; c.getContext('2d')!.fillRect(0, 0, 400, 300); return c.toDataURL('image/jpeg').split(',')[1]; });
+    await page.locator('input[type=file]').setInputFiles({ name: 'leaf.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg, 'base64') });
+    await page.getByRole('button', { name: 'Check this maize photo' }).click();
+    await page.getByRole('button', { name: 'Ask a follow-up about this' }).click();
+    await expect(page.getByLabel('Your question')).toHaveValue(/photo check said: "Likely nitrogen deficiency\."/);
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect(page.getByText('Top-dress with urea this week.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Listen' })).toBeVisible();
+  });
+});

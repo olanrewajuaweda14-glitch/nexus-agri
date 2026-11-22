@@ -4,10 +4,12 @@ import type { Farm, SoilSummary } from '../lib/types';
 import type { Insights } from '../lib/useInsights';
 import { textureClass } from '../lib/engine/soil';
 import { relativeDay } from '../lib/dates';
+import { useNav } from '../lib/nav';
 import { RootZoneTank, WaterChart } from '../components/charts';
 import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui';
 
 export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; onUpdateFarm: (patch: Partial<Farm>) => void }) {
+  const nav = useNav();
   const { derived, soil, soilSummary, limits, findings, crop, stage, today } = ins;
   const water = derived.water;
   const hasLab = !!farm.labSoil && Object.values(farm.labSoil).some((v) => v != null);
@@ -93,6 +95,11 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
                     <div>
                       <p className="font-semibold">{f.title}</p>
                       <p className="mt-0.5 text-[15px] leading-relaxed text-ink-2">{f.detail}</p>
+                      {f.id === 'ph-low' && (
+                        <button type="button" className="mt-2 text-sm font-medium text-leaf underline-offset-2 hover:underline" onClick={() => nav.go('money', { money: 'shop' })}>
+                          See the lime on your buy list →
+                        </button>
+                      )}
                     </div>
                   </li>
                 ))}
