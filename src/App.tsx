@@ -165,7 +165,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
   const screen = useMemo(() => {
     switch (tab) {
       case 'weather':
-        return <Weather ins={ins} />;
+        return <Weather farm={farm} ins={ins} />;
       case 'field':
         return <Field farm={farm} ins={ins} onUpdateFarm={onUpdateFarm} />;
       case 'money':

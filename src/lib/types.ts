@@ -15,6 +15,8 @@ export interface Farm {
   water: WaterSource;
   /** Lab results override SoilGrids estimates when present. */
   labSoil?: Partial<SoilSummary>;
+  /** Field boundary measured on the map or by walking it, [lat, lng] corners. */
+  boundary?: [number, number][];
   createdAt: string;
 }
 

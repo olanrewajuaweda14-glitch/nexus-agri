@@ -1,4 +1,6 @@
 import type { Insights } from '../lib/useInsights';
+import type { Farm } from '../lib/types';
+import { SprayMix } from '../components/SprayMix';
 import { farmNow } from '../lib/useInsights';
 import { shortDate } from '../lib/dates';
 import { ago, wmo } from '../lib/format';
@@ -8,17 +10,22 @@ import { ForecastRows, MonthlyRain, SprayStrip } from '../components/charts';
 import { FarmSky } from '../components/FarmSky';
 import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui';
 
-export function Weather({ ins }: { ins: Insights }) {
+export function Weather({ farm, ins }: { farm: Farm; ins: Insights }) {
   const { weather, climate, derived, today } = ins;
   const w = ins.forecast;
 
   if (!w) {
     return weather.status === 'error' || weather.data ? (
-      <ErrorNote
-        title={weather.data ? 'Saved forecast is out of date' : 'Weather unavailable'}
-        detail={weather.data ? 'The forecast saved on this phone no longer covers today. Refresh when you have signal.' : weather.error}
-        onRetry={ins.refresh}
-      />
+      <div className="space-y-8">
+        <ErrorNote
+          title={weather.data ? 'Saved forecast is out of date' : 'Weather unavailable'}
+          detail={weather.data ? 'The forecast saved on this phone no longer covers today. Refresh when you have signal.' : weather.error}
+          onRetry={ins.refresh}
+        />
+        <Section title="Mixing the spray" id="mix">
+          <SprayMix farm={farm} />
+        </Section>
+      </div>
     ) : (
       <div className="space-y-4">
         <Skeleton className="h-24" />
@@ -64,6 +71,10 @@ export function Weather({ ins }: { ins: Insights }) {
           </div>
         </Section>
       )}
+
+      <Section title="Mixing the spray" id="mix">
+        <SprayMix farm={farm} />
+      </Section>
 
       <Section title="8-day forecast" id="forecast">
         <ForecastRows weather={w} today={today} label={wmo} />

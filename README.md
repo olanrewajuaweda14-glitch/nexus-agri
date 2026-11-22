@@ -11,7 +11,9 @@ Built for smallholder farms and extension agents in Nigeria: phone-first, readab
 | **Plan** | This week's jobs, sorted *do now / this week / keep an eye on*. Fertilizer timed for moist soil and away from heavy rain, sprays tied to the next safe window, overdue tasks flagged, tick-off that persists, share to WhatsApp. | Crop calendar (below) + forecast + water balance |
 | **Weather** | Hour-by-hour spray windows for 72 h, 8-day forecast with ET₀, last 30 days of rain against the 10-year normal, monthly rainfall climatology. | Open-Meteo forecast API; ERA5 reanalysis via Open-Meteo archive |
 | **Field** | Daily root-zone water balance (30 days back, 7 ahead) with the crop's stress line; soil pH, texture, organic carbon, N, CEC and usable water, with plain-language findings and lime estimate. Lab results override the estimate. | FAO-56 single-Kc balance; ISRIC SoilGrids 2.0; Saxton & Rawls (2006) pedotransfer |
-| **Money** | Per-hectare budget, margin, break-even yield and price, and a yield × price profit grid. | Your inputs (example figures until you change them) |
+| **Money** | Budget with break-evens and a yield × price grid; **buy list** of seed, fertilizer bags and lime for the field; **farm record book** (spend, harvest, sales; CSV and printable export); **sell or store** decision with storage losses, costs and interest; **salt-bottle drying check**. | Your inputs; crop seed and fertilizer rates |
+| **Market prices** | Nearest monitored market's latest price for your crop, 24-month trend, and the usual harvest-to-lean-season swing, feeding the budget and storage tools. | WFP Nigeria market monitoring via HDX (server only) |
+| **Field tools** | Measure the field by tapping corners on satellite imagery or walking the edge with GPS; knapsack spray-mix calculator with sprayer calibration; read the weekly plan aloud. | Geodesic area; label dose ÷ calibrated spray volume |
 | **Ask** | Questions answered from the farm's computed data, in English, Pidgin, Hausa, Yorùbá or Igbo. Photo check returning ranked candidate causes and the field checks that tell them apart. | Gemini, given only the app's computed context |
 
 Crops: maize, rice, sorghum, soybean, cowpea, tomato, cassava — early, medium or late varieties.
@@ -49,7 +51,7 @@ npm run build && npm start
 ### Hosting
 
 - **Vercel** — import the repo with the Vite preset. The static app is built from `dist/`, and `api/[route].ts` becomes a serverless function for every `/api/*` route. To turn on the AI advisor, add `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) under *Project → Settings → Environment Variables*, then redeploy.
-- **Any Node host** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org`, `nominatim.openstreetmap.org` and `generativelanguage.googleapis.com`.
+- **Any Node host** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org`, `nominatim.openstreetmap.org`, `data.humdata.org` (market prices) and `generativelanguage.googleapis.com`.
 - **Static only** — GitHub Pages, Netlify without functions, `vite preview`: deploy `dist/`. The app notices there is no server behind `/api` and fetches weather, climate, soil and place names straight from the public APIs in the browser. Only the Ask tab is unavailable, and it says so.
 
 Express (`server.ts`) and the Vercel function share one implementation in `server/handlers.ts`.

@@ -91,3 +91,35 @@ describe('record book', () => {
     expect(lines.at(-1)).toMatch(/^2027-02-10,Sold,,To aggregator,1650000,3000,/);
   });
 });
+
+import { mix, waterRateFromTest } from '../src/lib/engine/sprayMix';
+
+describe('spray mix', () => {
+  it('converts a per-hectare label dose into product per knapsack', () => {
+    // 3 L/ha glyphosate, 15 L knapsack, 200 L water/ha → 13.33 tanks/ha → 225 ml per tank.
+    const r = mix({ dose: 3, unit: 'L', per: 'ha', tankL: 15, waterLPerHa: 200, areaHa: 2 })!;
+    expect(r.tanksPerHa).toBeCloseTo(13.333, 2);
+    expect(r.perTank).toBeCloseTo(225);
+    expect(r.fullTanks).toBe(26);
+    expect(r.lastTankWaterL).toBeCloseTo(10);
+    expect(r.lastTankProduct).toBeCloseTo(150);
+    expect(r.totalProduct).toBeCloseTo(6000); // 3 L/ha × 2 ha
+    expect(r.m2PerTank).toBeCloseTo(750);
+  });
+  it('handles powders and per-tank label doses', () => {
+    const powder = mix({ dose: 500, unit: 'g', per: 'ha', tankL: 16, waterLPerHa: 160, areaHa: 0.5 })!;
+    expect(powder.smallUnit).toBe('g');
+    expect(powder.perTank).toBeCloseTo(50);
+    expect(powder.totalProduct).toBeCloseTo(250);
+    const perTank = mix({ dose: 40, unit: 'ml', per: 'tank', tankL: 15, waterLPerHa: 300, areaHa: 1 })!;
+    expect(perTank.perTank).toBe(40);
+    expect(perTank.totalProduct).toBeCloseTo(800); // 20 tanks
+  });
+  it('refuses incomplete input instead of returning nonsense', () => {
+    expect(mix({ dose: 0, unit: 'L', per: 'ha', tankL: 15, waterLPerHa: 200, areaHa: 1 })).toBeNull();
+    expect(mix({ dose: 1, unit: 'L', per: 'ha', tankL: 15, waterLPerHa: 0, areaHa: 1 })).toBeNull();
+  });
+  it('turns a 100 m² water test into litres per hectare', () => {
+    expect(waterRateFromTest(2.5, 100)).toBe(250);
+  });
+});

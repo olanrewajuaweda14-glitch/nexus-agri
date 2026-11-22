@@ -62,6 +62,29 @@ export function rawSources() {
   return { forecast, archive, soilgrids };
 }
 
+const month = (offset: number) => {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + offset);
+  return d.toISOString().slice(0, 7);
+};
+
+/** A nearest-market price summary in the shape /api/prices returns. */
+export const priceSummary = () => ({
+  crop: 'maize',
+  commodity: 'Maize (white)',
+  pricetype: 'Wholesale',
+  market: 'Bodija',
+  admin1: 'Oyo',
+  distanceKm: 2,
+  latest: { month: month(-1), perTon: 620_000 },
+  history: Array.from({ length: 24 }, (_, i) => ({ month: month(i - 24), perTon: 450_000 + i * 7_000 })),
+  seasonal: [1.0, 1.05, 1.1, 1.15, 1.2, 1.3, 1.3, 1.15, 1.0, 0.85, 0.8, 0.9],
+  seasonalSource: 'market',
+  nearby: [{ market: 'Dawanau', admin1: 'Kano', distanceKm: 690, perTon: 560_000, month: month(-1) }],
+  ageMonths: 1,
+});
+
 export interface MockOptions {
   ai?: boolean;
   weatherFails?: boolean;
@@ -77,6 +100,7 @@ export async function mockApi(target: Page | BrowserContext, opts: MockOptions =
   await target.route('**/api/soil**', (r) => r.fulfill({ json: soilBundle() }));
   await target.route('**/api/place**', (r) => r.fulfill({ json: { name: 'Ibadan, Oyo State' } }));
   await target.route('**/nominatim.openstreetmap.org/**', (r) => r.fulfill({ json: { address: { city: 'Ibadan', state: 'Oyo State' } }, headers: { 'access-control-allow-origin': '*' } }));
+  await target.route('**/api/prices**', (r) => r.fulfill({ json: { summary: priceSummary(), source: 'WFP' } }));
   await target.route('**/api/health', (r) => r.fulfill({ json: { ok: true, ai: !!opts.ai, model: opts.ai ? 'test-model' : null } }));
 }
 

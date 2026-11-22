@@ -7,7 +7,10 @@
  * ES modules, which need explicit extensions. TypeScript, Vite, tsx and
  * esbuild all map them back to the .ts sources.
  */
-import { getClimate, getSoil, getWeather, reverseGeocode, UpstreamError } from './sources.js';
+import { getClimate, getPriceRows, getSoil, getWeather, reverseGeocode, UpstreamError } from './sources.js';
+import { summarizePrices } from '../src/lib/data/prices.js';
+import { CROPS } from '../src/lib/crops.js';
+import type { CropId } from '../src/lib/types.js';
 import { ai, AiFailed, AiUnavailable, ask, diagnose, LANGUAGES, MODEL } from './ai.js';
 
 export interface ApiRequest {
@@ -29,7 +32,7 @@ export interface ApiResponse {
 // Per-instance memory. On serverless this resets with each cold start, so it
 // blunts bursts rather than enforcing a hard quota.
 const hits = new Map<string, { n: number; reset: number }>();
-const LIMITS: Record<string, number> = { weather: 60, climate: 30, soil: 20, place: 20, ask: 20, diagnose: 10 };
+const LIMITS: Record<string, number> = { weather: 60, climate: 30, soil: 20, place: 20, prices: 30, ask: 20, diagnose: 10 };
 
 function rateLimited(route: string, ip: string): ApiResponse | null {
   const max = LIMITS[route];
@@ -74,6 +77,14 @@ const DATA = {
 
 const GET: Record<string, Handler> = {
   health: async () => ok({ ok: true, ai: !!ai(), model: ai() ? MODEL : null, languages: LANGUAGES }),
+  prices: async ({ query }) => {
+    const c = coords(query);
+    const crop = String(first(query.crop) ?? '') as CropId;
+    if (!c) return bad('bad_coords');
+    if (!(crop in CROPS)) return bad('bad_crop');
+    const summary = summarizePrices(await getPriceRows(), crop, c.lat, c.lng);
+    return ok({ summary, source: 'WFP Nigeria market monitoring (HDX)' }, 6 * 3600);
+  },
   place: async ({ query }) => {
     const c = coords(query);
     return c ? ok({ name: await reverseGeocode(c.lat, c.lng) }) : bad('bad_coords');

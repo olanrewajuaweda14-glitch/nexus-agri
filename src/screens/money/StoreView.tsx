@@ -6,6 +6,9 @@ import { naira } from '../../lib/format';
 import { load, save } from '../../lib/storage';
 import { NumberInput, Section } from '../../components/ui';
 import { CountUp } from '../../components/motion';
+import { MarketPrice, type useMarketPrice } from '../../components/MarketPrice';
+import { seasonalForecast } from '../../lib/data/prices';
+import { DryCheck } from '../../components/DryCheck';
 
 interface Inputs {
   tonnes: number;
@@ -19,7 +22,7 @@ interface Inputs {
   edited: boolean;
 }
 
-export function StoreView({ farm, budget }: { farm: Farm; budget: Budget }) {
+export function StoreView({ farm, budget, market }: { farm: Farm; budget: Budget; market: ReturnType<typeof useMarketPrice> }) {
   const key = `na:store:${farm.id}:${farm.plantingDate}`;
   const crop = CROPS[farm.crop];
   const perishable = farm.crop === 'tomato' || farm.crop === 'cassava';
@@ -107,6 +110,24 @@ export function StoreView({ farm, budget }: { farm: Farm; budget: Budget }) {
           )}
         </p>
       </div>
+
+      <DryCheck />
+
+      <Section title="What prices did in past years" id="store-market">
+        <MarketPrice state={market} cropName={crop.name} />
+        {market.status === 'ok' && market.summary?.seasonal && (
+          <button
+            type="button"
+            className="btn btn-ghost press mt-1 w-full sm:w-auto"
+            onClick={() => {
+              const s = market.summary!;
+              set({ priceNow: s.latest.perTon, priceLater: seasonalForecast(s, v.months) ?? v.priceLater });
+            }}
+          >
+            Fill prices from today's market and past years' pattern
+          </button>
+        )}
+      </Section>
 
       <Section title="Your numbers" id="store-inputs">
         <div className="card grid gap-4 p-4 sm:grid-cols-2">
