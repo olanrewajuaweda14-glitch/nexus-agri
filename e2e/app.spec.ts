@@ -271,6 +271,104 @@ test.describe('quality', () => {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${tab} tab overflows by ${overflow}px`).toBeLessThanOrEqual(0);
     }
+    await nav(page, 'Money');
+    for (const view of ['Buy list', 'Records', 'Sell or store']) {
+      await page.getByRole('radio', { name: view }).click();
+      await page.waitForTimeout(300);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow, `Money › ${view} overflows by ${overflow}px`).toBeLessThanOrEqual(0);
+    }
     await ctx.close();
+  });
+});
+
+test.describe('season tools', () => {
+  test('buy list: bags for this field, prices add up, shareable', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Buy list' }).click();
+    await expect(page.getByRole('heading', { name: 'What to buy' })).toBeVisible();
+    // Maize, 2 ha: 800 kg NPK → 16 bags; 260 kg urea → 6 bags; soil pH 5.3 → lime.
+    const npk = page.locator('li').filter({ hasText: 'NPK 15-15-15' });
+    await expect(npk.getByText('16 bags')).toBeVisible();
+    await expect(page.locator('li').filter({ hasText: 'Urea' }).getByText('6 bags')).toBeVisible();
+    await expect(page.locator('li').filter({ hasText: 'Agricultural lime' })).toBeVisible();
+    await npk.getByLabel(/Price per bag/).fill('45000');
+    await expect(npk.getByText('₦720,000')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send list to your input dealer' })).toBeVisible();
+  });
+
+  test('record book: add spending, harvest and a sale; totals and export', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Records' }).click();
+    await expect(page.getByRole('heading', { name: 'Farm record book' })).toBeVisible();
+
+    const form = page.getByRole('form', { name: 'Add an entry' });
+    await form.getByRole('button', { name: 'Add spent' }).click();
+    await expect(form.getByRole('alert')).toContainText('Enter the amount');
+    await form.getByLabel('What for').selectOption('fert');
+    await form.getByLabel(/Details/).fill('16 bags NPK');
+    await form.getByLabel('Amount paid').fill('640000');
+    await form.getByRole('button', { name: 'Add spent' }).click();
+
+    await form.getByRole('radio', { name: 'Harvested' }).click();
+    await form.getByLabel('Quantity').fill('54');
+    await form.getByRole('button', { name: 'Add harvested' }).click();
+
+    await form.getByRole('radio', { name: 'Sold' }).click();
+    await form.getByLabel('Quantity').fill('30');
+    await form.getByLabel('Total received').fill('1650000');
+    await expect(form.getByText(/₦55,000 per 100 kg bag/)).toBeVisible();
+    await form.getByRole('button', { name: 'Add sold' }).click();
+
+    await expect(page.locator('#entries li')).toHaveCount(3);
+    await expect(page.getByText('2.70 t/ha (plan 3)')).toBeVisible();
+    await expect(page.getByText('2.40 t still unsold')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Spending against plan' })).toBeVisible();
+
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download spreadsheet' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^sample-maize-near-ibadan-records-\d{4}-\d{2}-\d{2}\.csv$/);
+    const csv = await (await file.createReadStream())!.toArray().then((c) => Buffer.concat(c).toString('utf8'));
+    expect(csv).toContain('Spent,Fertilizer,16 bags NPK,640000');
+    expect(csv).toContain('Sold,,Sale,1650000,3000');
+
+    await page.reload();
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Records' }).click();
+    await expect(page.locator('#entries li')).toHaveCount(3);
+  });
+
+  test('sell or store: verdict follows the numbers', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Sell or store' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Storing could earn');
+    await page.getByLabel(/Price you expect then/).fill('560000');
+    await page.getByRole('radio', { name: /Ordinary sacks, untreated/ }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Sell now');
+    await expect(page.getByText(/Storing only pays if a 100 kg bag fetches more than/)).toBeVisible();
+  });
+
+  test('listen button reads the plan aloud', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as any).__spoken = [];
+      const synth = { speaking: false, getVoices: () => [], cancel() {}, speak(u: any) { (window as any).__spoken.push(u.text); } };
+      Object.defineProperty(window, 'speechSynthesis', { value: synth });
+      (window as any).SpeechSynthesisUtterance = function (this: any, text: string) { this.text = text; };
+    });
+    await mockApi(page);
+    await startSample(page);
+    await page.getByRole('button', { name: "Listen to this week's plan" }).click();
+    const spoken: string[] = await page.evaluate(() => (window as any).__spoken);
+    expect(spoken[0]).toMatch(/^Maize, day 38\. Rapid growth\./);
+    expect(spoken[0]).toContain('Do now: First weeding');
+    expect(spoken[0]).not.toMatch(/·|–/);
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
   });
 });

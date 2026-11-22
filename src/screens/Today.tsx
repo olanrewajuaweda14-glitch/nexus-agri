@@ -9,6 +9,7 @@ import { ErrorNote, ProgressRing, Section, Skeleton } from '../components/ui';
 import { FarmSky } from '../components/FarmSky';
 import { CropGlyph } from '../components/CropGlyph';
 import { CountUp } from '../components/motion';
+import { ListenButton } from '../components/ListenButton';
 import { farmNow } from '../lib/useInsights';
 
 interface Props {
@@ -150,9 +151,12 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
       )}
 
       {open.length > 0 && !loading && (
-        <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={() => sharePlan(farm, ins, open)}>
-          <Share2 className="h-4 w-4" aria-hidden /> Send this plan on WhatsApp
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <ListenButton text={spokenPlan(ins, open)} label="Listen to this week's plan" />
+          <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={() => sharePlan(farm, ins, open)}>
+            <Share2 className="h-4 w-4" aria-hidden /> Send this plan on WhatsApp
+          </button>
+        </div>
       )}
     </div>
   );
@@ -186,6 +190,21 @@ function ForecastNotice({ ins }: { ins: Insights }) {
     );
   }
   return null;
+}
+
+/** Plain sentences for text-to-speech: no symbols, units spelled out. */
+function spokenPlan(ins: Insights, actions: PlanAction[]) {
+  const say = (t: string) => t.replace(/·/g, ',').replace(/–/g, ' to ').replace(/(\d) ?mm\b/g, '$1 millimetres').replace(/(\d) ?kg\b/g, '$1 kilograms').replace(/\bha\b/g, 'hectares').replace(/°C/g, ' degrees');
+  const head = ins.stage.status === 'growing' ? `${ins.crop.name}, day ${ins.stage.dap}. ${ins.stage.name}.` : `${ins.crop.name}. ${ins.stage.name}.`;
+  const now = actions.filter((a) => a.priority === 'now');
+  const week = actions.filter((a) => a.priority === 'week');
+  const parts = [head];
+  if (now.length) parts.push(`Do now: ${now.map((a) => `${a.title}, ${a.when}.`).join(' ')}`);
+  if (week.length) parts.push(`This week: ${week.map((a) => `${a.title}, ${a.when}.`).join(' ')}`);
+  const first = now[0] ?? week[0];
+  if (first?.how) parts.push(`For ${first.title.toLowerCase()}: ${first.how}`);
+  if (ins.derived.spray?.next) parts.push(`Next safe spray window: ${formatWindow(ins.derived.spray.next, ins.today)}.`);
+  return say(parts.join(' '));
 }
 
 function sharePlan(farm: Farm, ins: Insights, actions: PlanAction[]) {

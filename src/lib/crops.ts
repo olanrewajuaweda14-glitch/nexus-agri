@@ -53,6 +53,8 @@ export interface CropDef {
   humidDiseases: string;
   stages: CropStage[];
   tasks: CropTask[];
+  /** Planting material per hectare (standard extension rates). */
+  seed: { item: string; perHa: number; unit: 'kg' | 'g' | 'bundles'; note: string };
   exampleBudget: { pricePerTon: number; yieldTHa: number; costs: CostLine[] };
 }
 
@@ -102,6 +104,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 135,
         how: 'Harvest when husks are dry and kernels show a black layer at the base. Dry to 13% moisture and store in hermetic bags.' },
     ],
+    seed: { item: 'Maize seed (improved variety)', perHa: 25, unit: 'kg', note: '2 seeds per hole at 75 × 25 cm, thinned to 1 — about 53,000 plants/ha.' },
     exampleBudget: { pricePerTon: 550_000, yieldTHa: 3, costs: costs(60_000, 495_000, 60_000, 80_000, 150_000, 70_000, 50_000) },
   },
 
@@ -140,6 +143,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'birds', kind: 'other', title: 'Bird scaring', fromDap: 80, toDap: 110, how: 'Quelea and weaver birds can take a large share of the crop at milk stage. Guard mornings and evenings.' },
       { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 128, how: 'Cut when 80–85% of grains are straw-coloured. Thresh and dry to 14% moisture within 24 h to protect milling quality.' },
     ],
+    seed: { item: 'Rice seed', perHa: 60, unit: 'kg', note: 'For transplanting or drilling. Broadcasting needs 80–100 kg/ha.' },
     exampleBudget: { pricePerTon: 700_000, yieldTHa: 3.5, costs: costs(70_000, 270_000, 70_000, 120_000, 220_000, 120_000, 60_000) },
   },
 
@@ -177,6 +181,7 @@ export const CROPS: Record<CropId, CropDef> = {
         how: 'Shake heads over a white sheet in the morning. Many bugs per head at milk stage justifies a spray.' },
       { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 130, how: 'Cut heads when grain is hard and shows a black spot at the base. Dry before threshing.' },
     ],
+    seed: { item: 'Sorghum seed', perHa: 10, unit: 'kg', note: 'Drill at 75 cm rows, thin to 2 plants per stand.' },
     exampleBudget: { pricePerTon: 500_000, yieldTHa: 2, costs: costs(25_000, 240_000, 40_000, 70_000, 120_000, 60_000, 40_000) },
   },
 
@@ -210,6 +215,7 @@ export const CROPS: Record<CropId, CropDef> = {
         how: 'Check undersides of lower leaves for tan-brown rust pustules; check pods for stink bugs.' },
       { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 100, toDap: 115, how: 'Harvest when 95% of pods are brown. Delays of a week can lose 10–20% to shattering.' },
     ],
+    seed: { item: 'Soybean seed', perHa: 60, unit: 'kg', note: 'Rows 60–75 cm apart, 5 cm within the row. Buy inoculant for the same area.' },
     exampleBudget: { pricePerTon: 750_000, yieldTHa: 1.8, costs: costs(55_000, 140_000, 50_000, 70_000, 120_000, 60_000, 40_000) },
   },
 
@@ -246,6 +252,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'harvest', kind: 'harvest', title: 'Harvest dry pods', fromDap: 70, toDap: 92,
         how: 'Pick pods as they dry. Store threshed grain in triple-layer hermetic bags to stop bruchid weevils.' },
     ],
+    seed: { item: 'Cowpea seed', perHa: 25, unit: 'kg', note: '2 seeds per hole at 75 × 25 cm.' },
     exampleBudget: { pricePerTon: 900_000, yieldTHa: 1.2, costs: costs(40_000, 90_000, 80_000, 60_000, 110_000, 60_000, 40_000) },
   },
 
@@ -283,6 +290,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'harvest', kind: 'harvest', title: 'Start harvesting', fromDap: 65, toDap: 110, repeatDays: 3,
         how: 'Pick at breaker stage (first blush of colour). Pack in crates, not sacks — sacks crush up to a third of the load.' },
     ],
+    seed: { item: 'Tomato seed (for the nursery)', perHa: 250, unit: 'g', note: 'Raise seedlings in a nursery for 4–5 weeks before transplanting at 75 × 50 cm.' },
     exampleBudget: { pricePerTon: 350_000, yieldTHa: 15, costs: costs(120_000, 300_000, 250_000, 100_000, 400_000, 300_000, 250_000) },
   },
 
@@ -316,6 +324,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'harvest', kind: 'harvest', title: 'Harvest window open', fromDap: 270, toDap: 360,
         how: 'Harvest in batches as you can sell or process — roots rot within 2–3 days of lifting.' },
     ],
+    seed: { item: 'Cassava stems', perHa: 55, unit: 'bundles', note: 'Bundles of 50 stems, 1 m long; cut into 20–25 cm cuttings — about 10,000 per hectare at 1 × 1 m.' },
     exampleBudget: { pricePerTon: 120_000, yieldTHa: 15, costs: costs(80_000, 360_000, 60_000, 90_000, 250_000, 180_000, 120_000) },
   },
 };

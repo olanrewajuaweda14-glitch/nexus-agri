@@ -91,7 +91,7 @@ export function App() {
               ? () => {
                   setFarms((fs) => fs.filter((x) => x.id !== editing.id));
                   remove(KEYS.chat(editing.id));
-                  removeByPrefix(KEYS.budget(`${editing.id}:`));
+                  removeByPrefix(KEYS.budget(`${editing.id}:`), `na:records:${editing.id}:`, `na:prices:${editing.id}`, `na:store:${editing.id}:`);
                   setDone((prev) => {
                     const next = new Set([...prev].filter((k) => !k.startsWith(`${editing.id}:`)));
                     save(KEYS.done, [...next]);
@@ -169,7 +169,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
       case 'field':
         return <Field farm={farm} ins={ins} onUpdateFarm={onUpdateFarm} />;
       case 'money':
-        return <Money farm={farm} />;
+        return <Money farm={farm} ins={ins} />;
       case 'ask':
         return <Ask farm={farm} ins={ins} />;
       default:
