@@ -96,9 +96,9 @@ export function Ask({ farm, ins }: { farm: Farm; ins: Insights }) {
           <p className="mt-1 text-ink-2">
             Everything else — the weekly plan, spray windows, water balance, soil and costs — is calculated on your phone without AI and keeps working.{' '}
             {status === 'no-server' ? (
-              <>This copy is running as static files only. Run it with <code className="num rounded bg-paper px-1">npm start</code> (or any Node host) and set <code className="num rounded bg-paper px-1">GEMINI_API_KEY</code>.</>
+              <>This copy is running as static files only. Run it with <code className="num rounded bg-paper px-1">npm start</code> (or any Node host) and set <code className="num rounded bg-paper px-1">ANTHROPIC_API_KEY</code>.</>
             ) : (
-              <>To turn the advisor on, set <code className="num rounded bg-paper px-1">GEMINI_API_KEY</code> on the server and restart it.</>
+              <>To turn the advisor on, set <code className="num rounded bg-paper px-1">ANTHROPIC_API_KEY</code> on the server and restart it (on Vercel: add it under Environment Variables, then redeploy).</>
             )}
           </p>
         </div>

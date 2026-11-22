@@ -2,5 +2,5 @@
   "name": "Nexus Agri",
   "description": "A weekly field plan for Nigerian farms from live weather, soil data and crop growth stage: fertilizer timing, spray windows, water balance and costs.",
   "requestFramePermissions": ["camera", "geolocation"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

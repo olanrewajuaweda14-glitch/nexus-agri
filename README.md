@@ -14,13 +14,13 @@ Built for smallholder farms and extension agents in Nigeria: phone-first, readab
 | **Money** | Budget with break-evens and a yield × price grid; **buy list** of seed, fertilizer bags and lime for the field; **farm record book** (spend, harvest, sales; CSV and printable export); **sell or store** decision with storage losses, costs and interest; **salt-bottle drying check**. | Your inputs; crop seed and fertilizer rates |
 | **Market prices** | Nearest monitored market's latest price for your crop, 24-month trend, and the usual harvest-to-lean-season swing, feeding the budget and storage tools. | WFP Nigeria market monitoring via HDX (server only) |
 | **Field tools** | Measure the field by tapping corners on satellite imagery or walking the edge with GPS; knapsack spray-mix calculator with sprayer calibration; read the weekly plan aloud. | Geodesic area; label dose ÷ calibrated spray volume |
-| **Ask** | Questions answered from the farm's computed data, in English, Pidgin, Hausa, Yorùbá or Igbo. Photo check returning ranked candidate causes and the field checks that tell them apart. | Gemini, given only the app's computed context |
+| **Ask** | Questions answered from the farm's computed data, in English, Pidgin, Hausa, Yorùbá or Igbo. Photo check returning ranked candidate causes and the field checks that tell them apart. | Claude (Anthropic API), given only the app's computed context; structured JSON answers |
 
 Crops: maize, rice, sorghum, soybean, cowpea, tomato, cassava — early, medium or late varieties.
 
 ## What it deliberately does not do
 
-- **No invented data.** If a source is down the screen says so and shows the last saved copy with its age. With no forecast at all, calendar jobs still appear, with plain field checks in place of weather timing. There is no "simulated" AI fallback: if Gemini isn't configured, the advisor says it is off and everything else keeps working.
+- **No invented data.** If a source is down the screen says so and shows the last saved copy with its age. With no forecast at all, calendar jobs still appear, with plain field checks in place of weather timing. There is no "simulated" AI fallback: if the Claude API key isn't configured, the advisor says it is off and everything else keeps working.
 - **No fake satellite or market feeds.** Free, keyless NDVI and Nigerian market-price APIs don't exist; showing made-up numbers labelled "live" would mislead farmers. Prices are entered by the user.
 - **No accounts.** Farms, ticks and budgets live in the browser's storage on the device.
 
@@ -37,7 +37,7 @@ All logic is in `src/lib/` and is plain, tested TypeScript — no AI involved.
 
 ```bash
 npm install
-cp .env.example .env    # add GEMINI_API_KEY to enable the advisor (optional)
+cp .env.example .env    # add ANTHROPIC_API_KEY to enable the advisor (optional)
 npm run dev             # http://localhost:3000
 ```
 
@@ -50,8 +50,8 @@ npm run build && npm start
 
 ### Hosting
 
-- **Vercel** — import the repo with the Vite preset. The static app is built from `dist/`, and `api/[route].ts` becomes a serverless function for every `/api/*` route. To turn on the AI advisor, add `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`) under *Project → Settings → Environment Variables*, then redeploy.
-- **Any Node host** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org`, `nominatim.openstreetmap.org`, `data.humdata.org` (market prices) and `generativelanguage.googleapis.com`.
+- **Vercel** — import the repo with the Vite preset. The static app is built from `dist/`, and `api/[route].ts` becomes a serverless function for every `/api/*` route. To turn on the AI advisor, add `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_MODEL`) under *Project → Settings → Environment Variables*, then redeploy.
+- **Any Node host** — Render, Railway, Fly, Cloud Run, AI Studio, a VPS: `npm run build && npm start`. The server needs outbound HTTPS to `api.open-meteo.com`, `archive-api.open-meteo.com`, `rest.isric.org`, `nominatim.openstreetmap.org`, `data.humdata.org` (market prices) and `api.anthropic.com`.
 - **Static only** — GitHub Pages, Netlify without functions, `vite preview`: deploy `dist/`. The app notices there is no server behind `/api` and fetches weather, climate, soil and place names straight from the public APIs in the browser. Only the Ask tab is unavailable, and it says so.
 
 Express (`server.ts`) and the Vercel function share one implementation in `server/handlers.ts`.
@@ -65,7 +65,7 @@ server.ts            Express server (local dev, Node hosts)
 api/[route].ts       Vercel serverless function
 server/handlers.ts   All /api routes: weather, climate, soil, place, ask, diagnose, health
 server/sources.ts    Upstream fetch, trim (~15 KB weather bundle), cache per location
-server/ai.ts         Gemini prompts with JSON schemas; no fallback answers
+server/ai.ts         Claude prompts with Zod-validated structured output; no made-up fallback answers
 src/lib/crops.ts     Crop knowledge base
 src/lib/engine/      stage · water · spray · soil · plan · economics
 src/screens/         Today (Plan) · Weather · Field · Money · Ask · FarmForm · Welcome
