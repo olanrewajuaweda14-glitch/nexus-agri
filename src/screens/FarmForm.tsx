@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react';
-import { Crosshair, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Crosshair, Footprints, Loader2, Ruler, Undo2 } from 'lucide-react';
 import type { CropId, Farm, Maturity, WaterSource } from '../lib/types';
 import { CROP_LIST, CROPS } from '../lib/crops';
 import { daysBetween, localToday } from '../lib/dates';
 import { getPlace } from '../lib/data/api';
 import { MapPicker } from '../components/MapPicker';
 import { Segmented } from '../components/ui';
+import { AREA_UNITS, centroid, distance, perimeter, polygonArea, selfIntersects, type LatLng } from '../lib/geo';
 
 const ACRE = 0.404686;
 
@@ -21,6 +22,62 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
   const [water, setWater] = useState<WaterSource>(initial?.water ?? 'rainfed');
   const [locating, setLocating] = useState(false);
   const [locErr, setLocErr] = useState<string | null>(null);
+  const [boundary, setBoundary] = useState<LatLng[]>(initial?.boundary ?? []);
+  const [measuring, setMeasuring] = useState(false);
+  const before = useRef<LatLng[]>([]);
+  const [walk, setWalk] = useState<{ id: number; pos: LatLng | null; accuracy: number | null } | null>(null);
+  const watchId = useRef<number | null>(null);
+  // Stop GPS only when the form closes — not on every position update.
+  useEffect(() => () => { if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current); }, []);
+
+  const areaM2 = polygonArea(boundary);
+  const crossed = selfIntersects(boundary);
+
+  const startMeasuring = () => {
+    before.current = boundary;
+    setBoundary([]);
+    setMeasuring(true);
+  };
+  const stopWalking = () => {
+    if (watchId.current != null) navigator.geolocation.clearWatch(watchId.current);
+    watchId.current = null;
+    setWalk(null);
+  };
+  const startWalking = () => {
+    if (!navigator.geolocation) return setLocErr('This device cannot share its location.');
+    setBoundary([]);
+    const id = navigator.geolocation.watchPosition(
+      (p) => {
+        const here: LatLng = [p.coords.latitude, p.coords.longitude];
+        setWalk((w) => (w ? { ...w, pos: here, accuracy: p.coords.accuracy } : w));
+        // Only keep confident fixes, and only once you've moved a few metres.
+        if (p.coords.accuracy > 20) return;
+        setBoundary((b) => (b.length && distance(b[b.length - 1], here) < 5 ? b : [...b, here]));
+      },
+      (e) => {
+        setLocErr(e.code === e.PERMISSION_DENIED ? 'Location permission was refused. Tap the corners on the map instead.' : 'Lost the GPS signal. Tap the corners on the map instead.');
+        stopWalking();
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20_000 },
+    );
+    watchId.current = id;
+    setWalk({ id, pos: null, accuracy: null });
+  };
+  const finishMeasuring = () => {
+    stopWalking();
+    setMeasuring(false);
+    if (boundary.length >= 3 && !crossed) {
+      setUnit('ha');
+      setSize(String(Math.round((areaM2 / AREA_UNITS.ha) * 100) / 100));
+      const c = centroid(boundary);
+      if (!pt) setPoint(c[0], c[1]);
+    }
+  };
+  const cancelMeasuring = () => {
+    stopWalking();
+    setBoundary(before.current);
+    setMeasuring(false);
+  };
 
   const lookup = useRef(0);
   const setPoint = (lat: number, lng: number) => {
@@ -74,6 +131,7 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
       id: initial?.id ?? `f${Date.now().toString(36)}`,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
       labSoil: initial?.labSoil,
+      boundary: boundary.length >= 3 && !crossed ? boundary.map(([a, b]) => [Math.round(a * 1e6) / 1e6, Math.round(b * 1e6) / 1e6] as [number, number]) : undefined,
       name: name.trim(),
       lat: Math.round(pt.lat * 1e5) / 1e5,
       lng: Math.round(pt.lng * 1e5) / 1e5,
@@ -89,7 +147,7 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
   return (
     <form onSubmit={submit} className="space-y-8">
       <Field n={1} label="Where is the field?">
-        <MapPicker lat={pt?.lat ?? 9.08} lng={pt?.lng ?? 8.68} hasPoint={!!pt} onChange={setPoint} />
+        <MapPicker lat={pt?.lat ?? 9.08} lng={pt?.lng ?? 8.68} hasPoint={!!pt} onChange={setPoint} boundary={boundary} measuring={measuring && !walk} onBoundary={setBoundary} position={walk?.pos ?? null} />
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={locate} disabled={locating}>
             {locating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Crosshair className="h-4 w-4" />} I'm standing in the field
@@ -106,6 +164,54 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
           </span>
         </div>
         {locErr && <p className="mt-1 text-sm text-clay">{locErr}</p>}
+
+        {pt && !measuring && (
+          <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-line bg-card px-3 py-2.5">
+            <Ruler className="h-4 w-4 shrink-0 text-leaf" aria-hidden />
+            <span className="min-w-0 flex-1 text-sm">
+              {boundary.length >= 3 ? (
+                <>Measured: <b className="num">{(areaM2 / AREA_UNITS.ha).toFixed(2)} ha</b> <span className="text-ink-3">({(areaM2 / AREA_UNITS.acre).toFixed(2)} acres)</span></>
+              ) : (
+                <>Not sure of the size? Most people guess wrong — and fertilizer amounts follow the guess.</>
+              )}
+            </span>
+            <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={startMeasuring}>
+              {boundary.length >= 3 ? 'Measure again' : 'Measure the field'}
+            </button>
+          </div>
+        )}
+
+        {measuring && (
+          <div className="mt-3 space-y-3 rounded-xl border border-sun/50 bg-sun-soft/50 p-3" aria-live="polite">
+            <p className="text-sm">
+              {walk
+                ? <>Walk slowly along the edge of the field and come back to where you started. {walk.accuracy != null && <span className="text-ink-2">GPS accuracy ±{Math.round(walk.accuracy)} m{walk.accuracy > 20 ? ' — waiting for a better signal' : ''}.</span>}</>
+                : <>Tap each corner of the field on the map, going round in order. Drag a corner to adjust it.</>}
+            </p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-card px-2 py-1.5"><div className="num text-lg font-medium">{(areaM2 / AREA_UNITS.ha).toFixed(2)}</div><div className="text-[11px] text-ink-3">hectares</div></div>
+              <div className="rounded-lg bg-card px-2 py-1.5"><div className="num text-lg font-medium">{(areaM2 / AREA_UNITS.acre).toFixed(2)}</div><div className="text-[11px] text-ink-3">acres</div></div>
+              <div className="rounded-lg bg-card px-2 py-1.5"><div className="num text-lg font-medium">{Math.round(areaM2 / AREA_UNITS.plot)}</div><div className="text-[11px] text-ink-3">plots (50×100 ft)</div></div>
+            </div>
+            <p className="text-xs text-ink-2">{boundary.length} corner{boundary.length === 1 ? '' : 's'} · boundary {Math.round(perimeter(boundary))} m</p>
+            {crossed && <p role="alert" className="text-sm text-clay">The boundary crosses itself. Undo and tap the corners in order around the field.</p>}
+            {!crossed && areaM2 > 20 * AREA_UNITS.ha && <p className="text-sm text-sun">That's over 20 ha — larger than most single fields. Zoom in and check the corners are on this field's edges.</p>}
+            <div className="flex flex-wrap gap-2">
+              {!walk && (
+                <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={() => setBoundary((b) => b.slice(0, -1))} disabled={!boundary.length}>
+                  <Undo2 className="h-4 w-4" aria-hidden /> Undo
+                </button>
+              )}
+              <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={walk ? stopWalking : startWalking}>
+                <Footprints className="h-4 w-4" aria-hidden /> {walk ? 'Stop walking' : 'Walk the edge with GPS'}
+              </button>
+              <button type="button" className="btn btn-primary px-4 py-1.5 text-sm" onClick={finishMeasuring} disabled={boundary.length < 3 || crossed}>
+                Use {(areaM2 / AREA_UNITS.ha).toFixed(2)} ha
+              </button>
+              <button type="button" className="btn px-3 py-1.5 text-sm text-ink-3 hover:text-ink" onClick={cancelMeasuring}>Cancel</button>
+            </div>
+          </div>
+        )}
       </Field>
 
       <Field n={2} label="What's growing?">

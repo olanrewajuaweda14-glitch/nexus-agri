@@ -1,4 +1,5 @@
-import type { ClimateBundle, SoilBundle, WeatherBundle } from '../types';
+import type { ClimateBundle, CropId, SoilBundle, WeatherBundle } from '../types';
+import type { PriceSummary } from './prices';
 import { KEYS, load, save } from '../storage';
 import { fetchClimateDirect, fetchPlaceDirect, fetchSoilDirect, fetchWeatherDirect } from './sources';
 
@@ -95,6 +96,27 @@ export async function getPlace(lat: number, lng: number): Promise<string | null>
     }
   }
   return fetchPlaceDirect(lat, lng);
+}
+
+/**
+ * Nearest-market prices. Server only: the source file is several megabytes,
+ * too much to download on a phone, so static deployments get a clear error.
+ */
+export async function getPrices(crop: CropId, lat: number, lng: number): Promise<{ summary: PriceSummary | null; savedAt: string; stale: boolean }> {
+  const key = `na:cache:prices:${crop}:${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const cached = load<{ summary: PriceSummary | null; savedAt: string } | null>(key, null);
+  if (cached && Date.now() - Date.parse(cached.savedAt) < 12 * 3600_000) return { ...cached, stale: false };
+  try {
+    if (noServer) throw new ApiError('no_server', 'Market prices need the Nexus Agri server.');
+    const r = await api<{ summary: PriceSummary | null }>(`/api/prices?crop=${crop}&lat=${lat}&lng=${lng}`, { timeoutMs: 60_000 });
+    const entry = { summary: r.summary, savedAt: new Date().toISOString() };
+    save(key, entry);
+    return { ...entry, stale: false };
+  } catch (e) {
+    if (cached) return { ...cached, stale: true };
+    if (e instanceof ApiError && e.code === 'no_server') throw new ApiError('no_server', 'Market prices need the Nexus Agri server (not available on a static-only deployment).');
+    throw e;
+  }
 }
 
 export type AiStatus = 'on' | 'no-key' | 'no-server' | 'unreachable';

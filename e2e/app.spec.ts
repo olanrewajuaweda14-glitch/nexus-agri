@@ -236,6 +236,8 @@ test.describe('deployment modes', () => {
 
     await nav(page, 'Ask');
     await expect(page.getByText('The AI advisor needs the Nexus Agri server.')).toBeVisible();
+    await nav(page, 'Money');
+    await expect(page.getByText(/Market prices aren't available right now/)).toBeVisible();
   });
 });
 
@@ -370,5 +372,78 @@ test.describe('season tools', () => {
     expect(spoken[0]).toContain('Do now: First weeding');
     expect(spoken[0]).not.toMatch(/·|–/);
     await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();
+  });
+});
+
+test.describe('farmer tools', () => {
+  test('measure a field by tapping corners; a crossed boundary is refused', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Set up my farm' }).click();
+    const map = page.locator('.leaflet-container');
+    await map.waitFor();
+    await map.click({ position: { x: 160, y: 140 } });
+    await page.getByRole('button', { name: 'Measure the field' }).click();
+
+    // Bow-tie order first.
+    for (const [x, y] of [[100, 80], [220, 200], [220, 80], [100, 200]]) await map.click({ position: { x, y } });
+    await expect(page.getByRole('alert').filter({ hasText: 'crosses itself' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Use .* ha$/ })).toBeDisabled();
+
+    for (let i = 0; i < 4; i++) await page.getByRole('button', { name: 'Undo' }).click();
+    for (const [x, y] of [[100, 80], [220, 80], [220, 200], [100, 200]]) await map.click({ position: { x, y } });
+    await expect(page.getByText('4 corners')).toBeVisible();
+    const use = page.getByRole('button', { name: /^Use .* ha$/ });
+    const ha = (await use.textContent())!.match(/([\d.]+) ha/)![1];
+    expect(Number(ha)).toBeGreaterThan(0);
+    await use.click();
+    await expect(page.getByLabel('Field size')).toHaveValue(String(Number(ha)));
+    await expect(page.getByText(`Measured: ${Number(ha).toFixed(2)} ha`)).toBeVisible();
+  });
+
+  test('knapsack mix: product per tank, tanks for the field, sprayer test', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await nav(page, 'Weather');
+    await expect(page.getByText('Enter the label rate to see how much goes in each tank.')).toBeVisible();
+    await page.getByLabel('Label rate').fill('3');
+    // 3 L/ha, 15 L tank, 200 L/ha, 2 ha → 225 ml per tank, 26 full tanks + half, 6 L product.
+    await expect(page.getByText('225 ml')).toBeVisible();
+    await expect(page.getByText(/26\s*full \+ 1 part tank/)).toBeVisible();
+    await expect(page.getByText('last tank: 150 ml in 10 L')).toBeVisible();
+    await expect(page.getByText('6.00 L')).toBeVisible();
+
+    await page.getByRole('button', { name: "Don't know? Test your sprayer" }).click();
+    await page.getByLabel('Litres used on the test patch').fill('2.5');
+    await expect(page.getByText('250 L/ha')).toBeVisible();
+    await page.getByRole('button', { name: 'Use this' }).click();
+    await expect(page.getByText('180 ml')).toBeVisible(); // 3000 ml ÷ (250/15) tanks
+  });
+
+  test('market price feeds the budget and the storage decision', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await nav(page, 'Money');
+    await expect(page.getByText('₦62,000')).toBeVisible();
+    await expect(page.getByText(/Bodija, Oyo · near you/)).toBeVisible();
+    await expect(page.getByText(/usually cheapest in/)).toBeVisible();
+    await page.getByRole('button', { name: 'Use ₦620k/t' }).click();
+    await expect(page.getByRole('button', { name: 'Using this price' })).toBeDisabled();
+    await expect(page.getByText('6.0 t × ₦620k')).toBeVisible();
+
+    await page.getByRole('radio', { name: 'Sell or store' }).click();
+    await page.getByRole('button', { name: /Fill prices from today's market/ }).click();
+    await expect(page.getByLabel(/Price now/)).toHaveValue('620,000');
+  });
+
+  test('salt-bottle drying check gives a clear answer', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page);
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Sell or store' }).click();
+    await page.getByRole('radio', { name: 'Salt sticks to the glass' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Too damp to store' })).toBeVisible();
+    await page.getByRole('radio', { name: 'Salt stays loose and dry' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Dry enough to store' })).toBeVisible();
   });
 });

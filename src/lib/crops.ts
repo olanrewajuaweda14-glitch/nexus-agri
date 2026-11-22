@@ -1,4 +1,4 @@
-import type { ActionKind, CostLine, CropId, Maturity } from './types';
+import type { ActionKind, CostLine, CropId, Maturity } from './types.js';
 
 /**
  * Crop knowledge base.
@@ -102,7 +102,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'weed2', kind: 'weed', title: 'Second weeding and earthing-up', fromDap: 35, toDap: 48,
         how: 'Earth up soil around the stems to support roots before the plants get tall.' },
       { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 135,
-        how: 'Harvest when husks are dry and kernels show a black layer at the base. Dry to 13% moisture and store in hermetic bags.' },
+        how: 'Harvest when husks are dry and kernels show a black layer at the base. Dry to below 13% moisture — check with the salt-bottle test in Money › Sell or store — then store in hermetic bags.' },
     ],
     seed: { item: 'Maize seed (improved variety)', perHa: 25, unit: 'kg', note: '2 seeds per hole at 75 × 25 cm, thinned to 1 — about 53,000 plants/ha.' },
     exampleBudget: { pricePerTon: 550_000, yieldTHa: 3, costs: costs(60_000, 495_000, 60_000, 80_000, 150_000, 70_000, 50_000) },
@@ -141,7 +141,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'urea2', kind: 'fertilizer', dose: { product: 'urea', kgPerHa: 65 }, title: 'Second urea split (panicle initiation)', fromDap: 45, toDap: 55, needsMoistSoil: true,
         how: '1¼ bags (65 kg) urea per hectare.' },
       { id: 'birds', kind: 'other', title: 'Bird scaring', fromDap: 80, toDap: 110, how: 'Quelea and weaver birds can take a large share of the crop at milk stage. Guard mornings and evenings.' },
-      { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 128, how: 'Cut when 80–85% of grains are straw-coloured. Thresh and dry to 14% moisture within 24 h to protect milling quality.' },
+      { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 128, how: 'Cut when 80–85% of grains are straw-coloured. Thresh and dry to 14% moisture within 24 h to protect milling quality; the salt-bottle test (Money › Sell or store) tells you when it is dry.' },
     ],
     seed: { item: 'Rice seed', perHa: 60, unit: 'kg', note: 'For transplanting or drilling. Broadcasting needs 80–100 kg/ha.' },
     exampleBudget: { pricePerTon: 700_000, yieldTHa: 3.5, costs: costs(70_000, 270_000, 70_000, 120_000, 220_000, 120_000, 60_000) },
@@ -179,7 +179,7 @@ export const CROPS: Record<CropId, CropDef> = {
         how: 'Uproot Striga plants by hand before they set seed — each plant can shed tens of thousands of seeds.' },
       { id: 'headbug', kind: 'scout', title: 'Scout heads for midge and head bugs', fromDap: 60, toDap: 85, repeatDays: 7,
         how: 'Shake heads over a white sheet in the morning. Many bugs per head at milk stage justifies a spray.' },
-      { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 130, how: 'Cut heads when grain is hard and shows a black spot at the base. Dry before threshing.' },
+      { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 110, toDap: 130, how: 'Cut heads when grain is hard and shows a black spot at the base. Dry before threshing, and check with the salt-bottle test (Money › Sell or store) before bagging.' },
     ],
     seed: { item: 'Sorghum seed', perHa: 10, unit: 'kg', note: 'Drill at 75 cm rows, thin to 2 plants per stand.' },
     exampleBudget: { pricePerTon: 500_000, yieldTHa: 2, costs: costs(25_000, 240_000, 40_000, 70_000, 120_000, 60_000, 40_000) },
@@ -213,7 +213,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'weed2', kind: 'weed', title: 'Second weeding', fromDap: 35, toDap: 45, how: 'Last weeding before the canopy closes.' },
       { id: 'scout', kind: 'scout', title: 'Scout for rust and pod-sucking bugs', fromDap: 40, toDap: 85, repeatDays: 7,
         how: 'Check undersides of lower leaves for tan-brown rust pustules; check pods for stink bugs.' },
-      { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 100, toDap: 115, how: 'Harvest when 95% of pods are brown. Delays of a week can lose 10–20% to shattering.' },
+      { id: 'harvest', kind: 'harvest', title: 'Harvest', fromDap: 100, toDap: 115, how: 'Harvest when 95% of pods are brown. Delays of a week can lose 10–20% to shattering. Dry the beans and check with the salt-bottle test before bagging.' },
     ],
     seed: { item: 'Soybean seed', perHa: 60, unit: 'kg', note: 'Rows 60–75 cm apart, 5 cm within the row. Buy inoculant for the same area.' },
     exampleBudget: { pricePerTon: 750_000, yieldTHa: 1.8, costs: costs(55_000, 140_000, 50_000, 70_000, 120_000, 60_000, 40_000) },
@@ -250,7 +250,7 @@ export const CROPS: Record<CropId, CropDef> = {
       { id: 'spray2', kind: 'spray', title: 'Insecticide spray at podding', fromDap: 47, toDap: 56, needsSprayWindow: true,
         how: 'Targets pod borers and pod-sucking bugs. A third spray 10 days later is common where pressure is high.' },
       { id: 'harvest', kind: 'harvest', title: 'Harvest dry pods', fromDap: 70, toDap: 92,
-        how: 'Pick pods as they dry. Store threshed grain in triple-layer hermetic bags to stop bruchid weevils.' },
+        how: 'Pick pods as they dry. Check the grain is dry with the salt-bottle test, then store in triple-layer hermetic bags to stop bruchid weevils.' },
     ],
     seed: { item: 'Cowpea seed', perHa: 25, unit: 'kg', note: '2 seeds per hole at 75 × 25 cm.' },
     exampleBudget: { pricePerTon: 900_000, yieldTHa: 1.2, costs: costs(40_000, 90_000, 80_000, 60_000, 110_000, 60_000, 40_000) },

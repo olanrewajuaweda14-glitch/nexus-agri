@@ -3,7 +3,8 @@
  * repeated requests for the same farm don't hit the upstream APIs.
  */
 import type { ClimateBundle, SoilBundle, WeatherBundle } from '../src/lib/types.js';
-import { fetchClimateDirect, fetchPlaceDirect, fetchSoilDirect, fetchWeatherDirect } from '../src/lib/data/sources.js';
+import { fetchClimateDirect, fetchPlaceDirect, fetchSoilDirect, fetchWeatherDirect, getJson, UpstreamError as UpErr } from '../src/lib/data/sources.js';
+import { csvUrlFromPackage, HDX_PACKAGE, parseWfp, type PriceRow } from '../src/lib/data/prices.js';
 
 export { UpstreamError, normaliseSoil, normaliseWeather, summariseClimate } from '../src/lib/data/sources.js';
 
@@ -55,3 +56,39 @@ export const getWeather = cached<WeatherBundle>(30 * 60_000, (a, b) => fetchWeat
 export const getClimate = cached<ClimateBundle>(24 * 3600_000, (a, b) => fetchClimateDirect(a, b, UA));
 export const getSoil = cached<SoilBundle>(30 * 24 * 3600_000, (a, b) => fetchSoilDirect(a, b, UA));
 export const reverseGeocode = (lat: number, lng: number) => fetchPlaceDirect(lat, lng, UA);
+
+/* --------------------------------- Prices --------------------------------- */
+
+
+let priceCache: { rows: PriceRow[]; exp: number } | null = null;
+let priceLoading: Promise<PriceRow[]> | null = null;
+
+/** WFP Nigeria market prices: whole file downloaded once, parsed, cached for 12 hours. */
+export async function getPriceRows(): Promise<PriceRow[]> {
+  if (priceCache && priceCache.exp > Date.now()) return priceCache.rows;
+  if (!priceLoading) {
+    priceLoading = (async () => {
+      const pkg = await getJson(HDX_PACKAGE, 'HDX', 15_000, UA);
+      const url = csvUrlFromPackage(pkg);
+      if (!url) throw new UpErr('HDX', 'The market price file was not found on HDX.');
+      let res: Response;
+      try {
+        res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(45_000) });
+      } catch {
+        throw new UpErr('HDX', 'Could not download the market price file.');
+      }
+      if (!res.ok) throw new UpErr('HDX', `Market price file returned HTTP ${res.status}.`);
+      let rows: PriceRow[];
+      try {
+        rows = parseWfp(await res.text());
+      } catch (e) {
+        throw new UpErr('HDX', (e as Error).message);
+      }
+      priceCache = { rows, exp: Date.now() + 12 * 3600_000 };
+      return rows;
+    })().finally(() => {
+      priceLoading = null;
+    });
+  }
+  return priceLoading;
+}

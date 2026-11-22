@@ -10,6 +10,7 @@ import type { Insights } from '../lib/useInsights';
 import { ShoppingView } from './money/ShoppingView';
 import { RecordsView } from './money/RecordsView';
 import { StoreView } from './money/StoreView';
+import { MarketPrice, useMarketPrice } from '../components/MarketPrice';
 import { CountUp } from '../components/motion';
 
 interface Stored extends Budget {
@@ -25,6 +26,7 @@ export function Money({ farm, ins }: { farm: Farm; ins: Insights }) {
   const [b, setB] = useState<Stored>(() => load(storageKey, fresh(farm)));
   useEffect(() => { setB(load(storageKey, fresh(farm))); }, [storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const [view, setView] = useState<View>('budget');
+  const market = useMarketPrice(farm.crop, farm.lat, farm.lng);
   const update = (patch: Partial<Stored>) => {
     const next = { ...b, ...patch, edited: true };
     setB(next);
@@ -52,16 +54,16 @@ export function Money({ farm, ins }: { farm: Farm; ins: Insights }) {
         />
       </div>
       <div key={view} className="[animation:rise_380ms_var(--ease-out)_both]">
-        {view === 'budget' && <BudgetView farm={farm} b={b} update={update} reset={reset} />}
+        {view === 'budget' && <BudgetView farm={farm} b={b} update={update} reset={reset} market={market} />}
         {view === 'shop' && <ShoppingView farm={farm} ins={ins} />}
         {view === 'records' && <RecordsView farm={farm} budget={b} />}
-        {view === 'store' && <StoreView farm={farm} budget={b} />}
+        {view === 'store' && <StoreView farm={farm} budget={b} market={market} />}
       </div>
     </div>
   );
 }
 
-function BudgetView({ farm, b, update, reset }: { farm: Farm; b: Stored; update: (p: Partial<Stored>) => void; reset: () => void }) {
+function BudgetView({ farm, b, update, reset, market }: { farm: Farm; b: Stored; update: (p: Partial<Stored>) => void; reset: () => void; market: ReturnType<typeof useMarketPrice> }) {
 
   const e = useMemo(() => economics(b, farm.sizeHa), [b, farm.sizeHa]);
   const grid = useMemo(() => sensitivity(b, farm.sizeHa), [b, farm.sizeHa]);
@@ -92,6 +94,10 @@ function BudgetView({ farm, b, update, reset }: { farm: Farm; b: Stored; update:
         <Stat label="Break-even price" value={e.breakEvenPrice ?? '–'} format={(n: number) => naira(n, true)} unit="/t" note={e.breakEvenPrice != null ? `₦${Math.round(e.breakEvenPrice / 1000)} per kg` : undefined} />
         <Stat label="Return per ₦1" value={e.returnPerNaira ?? '–'} decimals={2} note="revenue ÷ cost" />
       </div>
+
+      <Section title="Market price near you" id="market">
+        <MarketPrice state={market} cropName={crop.name} onUse={(p) => update({ pricePerTon: p })} usedPrice={b.pricePerTon} />
+      </Section>
 
       <Section title="Your numbers" id="inputs">
         <div className="card divide-y divide-line-2">
