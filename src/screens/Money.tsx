@@ -5,7 +5,11 @@ import { CROPS } from '../lib/crops';
 import { economics, sensitivity } from '../lib/engine/economics';
 import { naira } from '../lib/format';
 import { KEYS, load, save } from '../lib/storage';
-import { NumberInput, Section, Stat } from '../components/ui';
+import { NumberInput, Section, Segmented, Stat } from '../components/ui';
+import type { Insights } from '../lib/useInsights';
+import { ShoppingView } from './money/ShoppingView';
+import { RecordsView } from './money/RecordsView';
+import { StoreView } from './money/StoreView';
 import { CountUp } from '../components/motion';
 
 interface Stored extends Budget {
@@ -14,15 +18,50 @@ interface Stored extends Budget {
 
 const fresh = (farm: Farm): Stored => ({ ...structuredClone(CROPS[farm.crop].exampleBudget), edited: false });
 
-export function Money({ farm }: { farm: Farm }) {
+type View = 'budget' | 'shop' | 'records' | 'store';
+
+export function Money({ farm, ins }: { farm: Farm; ins: Insights }) {
   const storageKey = KEYS.budget(`${farm.id}:${farm.crop}`);
   const [b, setB] = useState<Stored>(() => load(storageKey, fresh(farm)));
   useEffect(() => { setB(load(storageKey, fresh(farm))); }, [storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [view, setView] = useState<View>('budget');
   const update = (patch: Partial<Stored>) => {
     const next = { ...b, ...patch, edited: true };
     setB(next);
     save(storageKey, next);
   };
+  const reset = () => {
+    const f = fresh(farm);
+    setB(f);
+    save(storageKey, f);
+  };
+
+  return (
+    <div className="space-y-7">
+      <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <Segmented
+          label="Money tools"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'budget', label: 'Budget' },
+            { value: 'shop', label: 'Buy list' },
+            { value: 'records', label: 'Records' },
+            { value: 'store', label: 'Sell or store' },
+          ]}
+        />
+      </div>
+      <div key={view} className="[animation:rise_380ms_var(--ease-out)_both]">
+        {view === 'budget' && <BudgetView farm={farm} b={b} update={update} reset={reset} />}
+        {view === 'shop' && <ShoppingView farm={farm} ins={ins} />}
+        {view === 'records' && <RecordsView farm={farm} budget={b} />}
+        {view === 'store' && <StoreView farm={farm} budget={b} />}
+      </div>
+    </div>
+  );
+}
+
+function BudgetView({ farm, b, update, reset }: { farm: Farm; b: Stored; update: (p: Partial<Stored>) => void; reset: () => void }) {
 
   const e = useMemo(() => economics(b, farm.sizeHa), [b, farm.sizeHa]);
   const grid = useMemo(() => sensitivity(b, farm.sizeHa), [b, farm.sizeHa]);
@@ -93,7 +132,7 @@ export function Money({ farm }: { farm: Farm }) {
                 <Plus className="h-4 w-4" /> Add cost
               </button>
               {b.edited && (
-                <button type="button" className="btn px-3 py-1.5 text-sm text-ink-3 hover:text-ink" onClick={() => { const f = fresh(farm); setB(f); save(storageKey, f); }}>
+                <button type="button" className="btn px-3 py-1.5 text-sm text-ink-3 hover:text-ink" onClick={reset}>
                   Reset to example
                 </button>
               )}
