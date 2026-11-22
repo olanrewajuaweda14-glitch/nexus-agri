@@ -447,3 +447,34 @@ test.describe('farmer tools', () => {
     await expect(page.getByRole('status').filter({ hasText: 'Dry enough to store' })).toBeVisible();
   });
 });
+
+test.describe('opening the app', () => {
+  test('a fresh open starts on the welcome page and Continue goes to the Plan tab', async ({ context }) => {
+    const first = await context.newPage();
+    await mockApi(first);
+    await startSample(first);
+    await nav(first, 'Money');
+    await expect(first).toHaveURL(/#money$/);
+
+    // Reload in the same tab keeps your place.
+    await first.reload();
+    await expect(first.getByRole('radio', { name: 'Budget' })).toBeVisible();
+    await first.close();
+
+    // Opening the app again (new tab) starts on the welcome page, even with #money in the address.
+    const again = await context.newPage();
+    await mockApi(again);
+    await again.goto('/#money');
+    await expect(again.getByRole('heading', { level: 1 })).toContainText('What your farm');
+    await expect(again).not.toHaveURL(/#money/);
+    await again.getByRole('button', { name: /Sample: maize near Ibadan/ }).click();
+    await expect(again.getByRole('heading', { name: "This week's plan" })).toBeVisible();
+
+    // The logo goes back to the welcome page; Add a field → Cancel returns there too.
+    await again.getByRole('button', { name: 'Nexus Agri — home page' }).filter({ visible: true }).click();
+    await expect(again.getByText('Your fields')).toBeVisible();
+    await again.getByRole('button', { name: 'Add a field' }).click();
+    await again.getByRole('button', { name: 'Cancel' }).click();
+    await expect(again.getByText('Your fields')).toBeVisible();
+  });
+});
