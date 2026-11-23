@@ -2,10 +2,11 @@ import { useMemo, useState } from 'react';
 import { Download, Printer, Trash2 } from 'lucide-react';
 import type { Budget, Farm } from '../../lib/types';
 import { CROPS } from '../../lib/crops';
-import { recordsKey, summarize, toCsv, type FarmRecord, type RecordKind } from '../../lib/records';
+import { loadRecords, recordsKey, summarize, toCsv, type FarmRecord, type RecordKind } from '../../lib/records';
+import { useNav } from '../../lib/nav';
 import { localToday, shortDate } from '../../lib/dates';
 import { naira } from '../../lib/format';
-import { load, save } from '../../lib/storage';
+import { KEYS, load, save } from '../../lib/storage';
 import { NumberInput, Section, Segmented, Stat } from '../../components/ui';
 
 const KIND_LABEL: Record<RecordKind, string> = { expense: 'Spent', harvest: 'Harvested', sale: 'Sold' };
@@ -21,14 +22,9 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
   const s = useMemo(() => summarize(records, budget, farm.sizeHa), [records, budget, farm.sizeHa]);
   const sorted = useMemo(() => [...records].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)), [records]);
 
-  const download = () => {
-    const blob = new Blob([toCsv(records, farm, crop.name, budget)], { type: 'text/csv;charset=utf-8' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${farm.name.replace(/[^\w-]+/g, '-').toLowerCase()}-records-${farm.plantingDate}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  };
+  const download = () => downloadCsv(farm, crop.name, budget, records);
+  const nav = useNav();
+  const past = [...(farm.history ?? [])].reverse();
 
   return (
     <div className="space-y-8">
@@ -113,7 +109,56 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
           </button>
         </div>
       )}
-      <p className="text-xs text-ink-3">Records are saved on this phone for this planting. Download a copy now and then so a lost phone doesn't lose your season.</p>
+      <p className="text-xs text-ink-3">
+        Records are saved on this phone for this season. Back them up now and then (Back up or move phones, in the farm menu at the top) so a lost phone doesn't lose your season.
+      </p>
+      {records.length > 0 && (
+        <button type="button" className="text-sm font-medium text-leaf underline-offset-2 hover:underline" onClick={nav.startSeason}>
+          Finished this season? Start the next one →
+        </button>
+      )}
+
+      {past.length > 0 && (
+        <Section title="Past seasons" id="past-seasons" aside={`${past.length}`}>
+          <ul className="space-y-2">
+            {past.map((h) => {
+              const seasonFarm: Farm = { ...farm, crop: h.crop, plantingDate: h.plantingDate, maturity: h.maturity, sizeHa: h.sizeHa, seasonId: h.seasonId };
+              const name = CROPS[h.crop].name;
+              const recs = () => loadRecords(farm, h.seasonId);
+              const pastBudget = load(KEYS.budget(`${farm.id}:${h.crop}`), CROPS[h.crop].exampleBudget);
+              const cash = h.sales - h.spent;
+              return (
+                <li key={h.seasonId} className="card space-y-3 p-4">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="font-semibold">{name} <span className="font-normal text-ink-3">· planted {shortDate(h.plantingDate)} {h.plantingDate.slice(0, 4)} · {h.sizeHa} ha</span></p>
+                    <p className={`num text-sm font-medium ${cash > 0 ? 'text-leaf' : cash < 0 ? 'text-clay' : 'text-ink-3'}`}>{cash > 0 ? '+' : cash < 0 ? '−' : ''}{naira(Math.abs(cash), true)} cash</p>
+                  </div>
+                  <dl className="grid grid-cols-3 gap-3 text-sm">
+                    <div><dt className="text-ink-3">Yield</dt><dd className="num">{h.harvestedKg > 0 ? `${(h.harvestedKg / 1000 / Math.max(h.sizeHa, 0.01)).toFixed(2)} t/ha` : '—'}</dd></div>
+                    <div><dt className="text-ink-3">Spent</dt><dd className="num">{naira(h.spent, true)}</dd></div>
+                    <div><dt className="text-ink-3">Sales</dt><dd className="num">{naira(h.sales, true)}</dd></div>
+                  </dl>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={() => downloadCsv(seasonFarm, name, pastBudget, recs())}>
+                      <Download className="h-4 w-4" aria-hidden /> Spreadsheet
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost px-3 py-1.5 text-sm"
+                      onClick={() => {
+                        const r = recs();
+                        printRecord(seasonFarm, name, pastBudget, [...r].sort((a, b) => b.date.localeCompare(a.date)), summarize(r, pastBudget, h.sizeHa));
+                      }}
+                    >
+                      <Printer className="h-4 w-4" aria-hidden /> Print
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </Section>
+      )}
     </div>
   );
 }
@@ -207,6 +252,15 @@ function AddRecord({ budget, onAdd }: { budget: Budget; onAdd: (r: FarmRecord) =
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 /** A clean one-page record in a new window, ready to print or save as PDF. */
+function downloadCsv(farm: Farm, cropName: string, budget: Budget, records: FarmRecord[]) {
+  const blob = new Blob([toCsv(records, farm, cropName, budget)], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${farm.name.replace(/[^\w-]+/g, '-').toLowerCase()}-records-${farm.plantingDate}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
 function printRecord(farm: Farm, cropName: string, budget: Budget, records: FarmRecord[], s: ReturnType<typeof summarize>) {
   const w = window.open('', '_blank');
   if (!w) return alert('Allow pop-ups for this site to print the record.');

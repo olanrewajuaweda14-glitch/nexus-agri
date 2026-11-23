@@ -4,10 +4,26 @@ import { daysBetween } from '../dates';
 import { kcForDap, rootDepthForDap } from './stage';
 import type { WaterLimits } from './soil';
 
+/** What the farmer recorded at the field. */
+export interface WaterLogEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  kind: 'rain' | 'irrigation';
+  /** Millimetres of rain measured, or of irrigation water applied. */
+  mm?: number;
+  /** Irrigation that wet the whole root zone (watered until the soil was soaked). */
+  full?: boolean;
+}
+
 export interface WaterDay {
   date: string;
   forecast: boolean;
   rain: number; // mm (probability-weighted on forecast days)
+  /** True when rain for this day came from the farmer's own gauge reading. */
+  observed?: boolean;
+  /** Net irrigation applied that day, mm (Infinity is never stored: full refills are recorded as `refilled`). */
+  irrigation?: number;
+  refilled?: boolean;
   etc: number; // mm crop water use
   depletion: number; // mm below field capacity at end of day
   raw: number; // readily available water, mm
@@ -42,7 +58,10 @@ export const effectiveRain = (mm: number) => (mm <= 2 ? 0 : mm * 0.9);
  *
  * Starts 30 days back from the modelled soil moisture where available, runs
  * through today on observed weather and then 7 days ahead on forecast weather.
- * Irrigation already applied by the farmer is not known and not included.
+ *
+ * The farmer's own log overrides the model where it exists: a rain-gauge
+ * reading replaces the gridded rain for that day, irrigation is added, and a
+ * full irrigation refills the root zone to field capacity.
  */
 export function waterBalance(
   daily: DailySeries,
@@ -50,8 +69,11 @@ export function waterBalance(
   crop: CropDef,
   plantingDate: string,
   limits: WaterLimits,
+  log: WaterLogEntry[] = [],
 ): WaterBalance {
   const days: WaterDay[] = [];
+  const byDate = new Map<string, WaterLogEntry[]>();
+  for (const e of log) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
   let depletion = 0;
   let initialisedFromModel = false;
 
@@ -73,16 +95,28 @@ export function waterBalance(
       }
     }
 
+    const logged = forecast ? [] : byDate.get(date) ?? [];
+    const gauge = logged.filter((e) => e.kind === 'rain' && (e.mm ?? -1) >= 0);
+    const irrigations = logged.filter((e) => e.kind === 'irrigation');
+    const observed = gauge.length > 0;
+
     const rawRain = daily.precip[i] ?? 0;
     const prob = daily.precipProb[i];
-    const rain = forecast && prob != null ? rawRain * (prob / 100) : rawRain;
+    const rain = observed ? gauge.reduce((s, e) => s + (e.mm ?? 0), 0) : forecast && prob != null ? rawRain * (prob / 100) : rawRain;
+    const irrigation = irrigations.reduce((s, e) => s + Math.max(0, e.mm ?? 0), 0);
+    const refilled = irrigations.some((e) => e.full);
     const et0 = daily.et0[i] ?? 4;
     const kc = kcForDap(crop, dap);
     const ks = depletion > raw ? Math.max(0, (taw - depletion) / ((1 - crop.p) * taw)) : 1;
     const etc = kc * et0 * ks;
 
-    depletion = clamp(depletion - effectiveRain(rain) + etc, 0, taw);
-    days.push({ date, forecast, rain: round1(rain), etc: round1(etc), depletion: round1(depletion), raw: round1(raw), taw: round1(taw) });
+    depletion = refilled ? 0 : clamp(depletion - effectiveRain(rain) - irrigation + etc, 0, taw);
+    days.push({
+      date, forecast, rain: round1(rain), etc: round1(etc), depletion: round1(depletion), raw: round1(raw), taw: round1(taw),
+      ...(observed ? { observed } : {}),
+      ...(irrigation > 0 ? { irrigation: round1(irrigation) } : {}),
+      ...(refilled ? { refilled } : {}),
+    });
   }
 
   let todayIndex = days.findIndex((d) => d.date === today);

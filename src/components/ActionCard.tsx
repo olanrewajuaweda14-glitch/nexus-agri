@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, MessageCircle } from 'lucide-react';
+import { ArrowRight, BellPlus, MessageCircle } from 'lucide-react';
+import { googleCalendarUrl } from '../lib/calendar';
 import type { Farm } from '../lib/types';
 import { useNav, type Intent, type Tab } from '../lib/nav';
 import { addRecord } from '../lib/records';
-import { localToday } from '../lib/dates';
+import { addDays, localToday, relativeDay } from '../lib/dates';
 import { NumberInput } from './ui';
 import { Bug, ChevronDown, CloudRain, Droplets, Leaf, Shovel, Sprout, SprayCan, Thermometer, Tractor, Wheat } from 'lucide-react';
 import type { ActionKind, PlanAction } from '../lib/types';
@@ -30,6 +31,7 @@ const TONE = {
 
 /** The tool that helps with this job, so the card leads somewhere useful. */
 function nextStep(a: PlanAction): { label: string; tab: Tab; intent?: Intent } | null {
+  if (a.id === 'irrigate') return { label: 'Log it once you have irrigated', tab: 'field', intent: { scrollTo: 'water-log' } };
   if (a.id === 'onset' || a.kind === 'plant') return { label: 'What to buy before planting', tab: 'money', intent: { money: 'shop' } };
   switch (a.kind) {
     case 'fertilizer': return { label: 'See what to buy', tab: 'money', intent: { money: 'shop' } };
@@ -52,10 +54,12 @@ const LOG: Partial<Record<ActionKind, { ask: string; category?: string; harvest?
   harvest: { ask: 'How many 100 kg bags did you harvest?', harvest: true },
 };
 
-export function ActionCard({ action, done, onToggle, defaultOpen = false, farm }: { action: PlanAction; done: boolean; onToggle?: () => void; defaultOpen?: boolean; farm?: Farm }) {
+export function ActionCard({ action, done, onToggle, defaultOpen = false, farm, offsetSec = 3600 }: { action: PlanAction; done: boolean; onToggle?: () => void; defaultOpen?: boolean; farm?: Farm; offsetSec?: number }) {
   const [open, setOpen] = useState(defaultOpen);
   const nav = useNav();
   const step = nextStep(action);
+  // A 7 am reminder for today has usually passed already: due-now jobs remind tomorrow morning.
+  const remindOn = action.date ? (action.date > localToday() ? action.date : addDays(localToday(), 1)) : null;
   const log = farm && action.checkable ? LOG[action.kind] : undefined;
   const [logging, setLogging] = useState<'ask' | 'saved' | null>(null);
   const [amount, setAmount] = useState(0);
@@ -180,6 +184,16 @@ export function ActionCard({ action, done, onToggle, defaultOpen = false, farm }
               >
                 <MessageCircle className="h-4 w-4" aria-hidden /> Ask about this
               </button>
+              {remindOn && farm && !done && (
+                <a
+                  className="btn press px-3 py-1.5 text-sm text-ink-2 hover:bg-paper hover:text-ink"
+                  href={googleCalendarUrl({ date: remindOn, title: `${action.title} — ${farm.name}`, description: `${action.how ?? ''}\n\n${action.why.join('\n')}\n\nFrom Nexus Agri.` }, offsetSec)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <BellPlus className="h-4 w-4" aria-hidden /> Remind me {relativeDay(remindOn, localToday())}
+                </a>
+              )}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {action.sources.map((src) => (

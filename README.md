@@ -8,10 +8,13 @@ Built for smallholder farms and extension agents in Nigeria: phone-first, readab
 
 | Screen | What you get | Where the numbers come from |
 |---|---|---|
-| **Plan** | This week's jobs, sorted *do now / this week / keep an eye on*. Fertilizer timed for moist soil and away from heavy rain, sprays tied to the next safe window, overdue tasks flagged, tick-off that persists, share to WhatsApp. | Crop calendar (below) + forecast + water balance |
+| **Plan** | This week's jobs, sorted *do now / this week / keep an eye on*. Fertilizer timed for moist soil and away from heavy rain, sprays tied to the next safe window, overdue tasks flagged, tick-off that persists, share to WhatsApp. The plan can be read in Pidgin, Hausa, Yorùbá or Igbo; any job whose figures change in translation stays in English. | Crop calendar (below) + forecast + water balance; translation by Claude |
+| **Reminders** | The rest of the season's jobs as a calendar file (7 am alarm on the day each job opens), or one job at a time into Google Calendar. No account or push server. | iCalendar (RFC 5545) built on the phone |
 | **Weather** | Hour-by-hour spray windows for 72 h, 8-day forecast with ET₀, last 30 days of rain against the 10-year normal, monthly rainfall climatology. | Open-Meteo forecast API; ERA5 reanalysis via Open-Meteo archive |
-| **Field** | Daily root-zone water balance (30 days back, 7 ahead) with the crop's stress line; soil pH, texture, organic carbon, N, CEC and usable water, with plain-language findings and lime estimate. Lab results override the estimate. | FAO-56 single-Kc balance; ISRIC SoilGrids 2.0; Saxton & Rawls (2006) pedotransfer |
+| **Field** | Daily root-zone water balance (30 days back, 7 ahead) with the crop's stress line, corrected by your own rain-gauge readings and irrigation log; soil pH, texture, organic carbon, N, CEC and usable water, with plain-language findings and lime estimate. Lab results override the estimate. | FAO-56 single-Kc balance; ISRIC SoilGrids 2.0; Saxton & Rawls (2006) pedotransfer |
 | **Money** | Budget with break-evens and a yield × price grid; **buy list** of seed, fertilizer bags and lime for the field; **farm record book** (spend, harvest, sales; CSV and printable export); **sell or store** decision with storage losses, costs and interest; **salt-bottle drying check**. | Your inputs; crop seed and fertilizer rates |
+| **Seasons** | Correcting a planting date keeps that season's ticks and records. "Start next season" files the season's yield, spending and sales as the farm's track record, each with its own spreadsheet and printout. | Your record book |
+| **Backup** | Everything on the phone in one small file, shared to WhatsApp or Drive or downloaded; restore it on a new phone. Files that aren't Nexus Agri backups are refused before anything is touched. | — |
 | **Market prices** | Nearest monitored market's latest price for your crop, 24-month trend, and the usual harvest-to-lean-season swing, feeding the budget and storage tools. | WFP Nigeria market monitoring via HDX (server only) |
 | **Field tools** | Measure the field by tapping corners on satellite imagery or walking the edge with GPS; knapsack spray-mix calculator with sprayer calibration; read the weekly plan aloud. | Geodesic area; label dose ÷ calibrated spray volume |
 | **Ask** | Questions answered from the farm's computed data, in English, Pidgin, Hausa, Yorùbá or Igbo. Photo check returning ranked candidate causes and the field checks that tell them apart. | Claude (Anthropic API), given only the app's computed context; structured JSON answers |
@@ -21,15 +24,16 @@ Crops: maize, rice, sorghum, soybean, cowpea, tomato, cassava — early, medium 
 ## What it deliberately does not do
 
 - **No invented data.** If a source is down the screen says so and shows the last saved copy with its age. With no forecast at all, calendar jobs still appear, with plain field checks in place of weather timing. There is no "simulated" AI fallback: if the Claude API key isn't configured, the advisor says it is off and everything else keeps working.
-- **No fake satellite or market feeds.** Free, keyless NDVI and Nigerian market-price APIs don't exist; showing made-up numbers labelled "live" would mislead farmers. Prices are entered by the user.
-- **No accounts.** Farms, ticks and budgets live in the browser's storage on the device.
+- **No fake satellite or market feeds.** There is no free, keyless NDVI feed, so the app shows none. Market prices are WFP's monitored-market figures, shown with the market and month they come from; where there are none, prices are entered by the user.
+- **No accounts.** Farms, ticks and budgets live in the browser's storage on the device. A backup file moves them to a new phone.
+- **No unchecked translation.** Claude translates only the plan's text. The app compares the figures in every translated job with the English and keeps the English for any job where a number changed.
 
 ## The agronomy
 
 All logic is in `src/lib/` and is plain, tested TypeScript — no AI involved.
 
 - **Crop calendar** (`crops.ts`): stage boundaries and FAO-56 stage lengths/Kc per crop, plus field operations by days after planting with rates in kg/ha *and* 50 kg bags (e.g. maize: basal NPK 15-15-15 8 bags/ha at 0–14 DAP; urea 2½ bags/ha at 28–42 DAP). Rates follow standard Nigerian extension guidance and should be adjusted to a soil test.
-- **Water balance** (`engine/water.ts`): `Dr = Dr − Peff + Ks·Kc·ET0`, root depth growing through development, TAW from soil texture, stress when depletion exceeds `p·TAW`. Forecast rain is weighted by its probability. Initialised from the weather model's soil moisture.
+- **Water balance** (`engine/water.ts`): `Dr = Dr − Peff + Ks·Kc·ET0`, root depth growing through development, TAW from soil texture, stress when depletion exceeds `p·TAW`. Forecast rain is weighted by its probability. Initialised from the weather model's soil moisture. The farmer's log overrides the model: a rain-gauge reading replaces gridded rain for that day, irrigation is added, and "watered fully" refills the root zone.
 - **Spray windows** (`engine/spray.ts`): daylight, wind 3–15 km/h (calm = inversion risk), no rain that hour or the 4 h after, ≤30 °C, RH ≥ 40%.
 - **Plan** (`engine/plan.ts`): calendar tasks + weather timing + irrigation amount (mm and m³) + heavy-rain, heat-at-flowering and leaf-wetness disease alerts + rain-onset check before planting.
 
@@ -42,7 +46,7 @@ npm run dev             # http://localhost:3000
 ```
 
 ```bash
-npm test                # unit tests: agronomy engine, data normalisers, API handler
+npm test                # unit tests: agronomy engine, data normalisers, API handler, calendar, backup, translation checks
 npm run e2e             # browser tests on phone and desktop sizes (first run: npx playwright install chromium)
 npm run lint            # strict TypeScript
 npm run build && npm start
@@ -63,12 +67,13 @@ Map tiles always load in the browser from `server.arcgisonline.com`.
 ```
 server.ts            Express server (local dev, Node hosts)
 api/[route].ts       Vercel serverless function
-server/handlers.ts   All /api routes: weather, climate, soil, place, ask, diagnose, health
+server/handlers.ts   All /api routes: weather, climate, soil, place, prices, ask, diagnose, translate, health
 server/sources.ts    Upstream fetch, trim (~15 KB weather bundle), cache per location
 server/ai.ts         Claude prompts with Zod-validated structured output; no made-up fallback answers
 src/lib/crops.ts     Crop knowledge base
 src/lib/engine/      stage · water · spray · soil · plan · economics
-src/screens/         Today (Plan) · Weather · Field · Money · Ask · FarmForm · Welcome
+src/lib/             seasons · calendar (iCalendar) · backup · translate (figure check) · records
+src/screens/         Today (Plan) · Weather · Field · Money · Ask · FarmForm · Backup · Welcome
 tests/               Vitest suites and weather fixtures
 ```
 

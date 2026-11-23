@@ -1,5 +1,6 @@
 import type { ClimateBundle, CropId, SoilBundle, WeatherBundle } from '../types';
 import type { PriceSummary } from './prices';
+import type { PlanText } from '../translate';
 import { KEYS, load, save } from '../storage';
 import { fetchClimateDirect, fetchPlaceDirect, fetchSoilDirect, fetchWeatherDirect } from './sources';
 
@@ -120,11 +121,23 @@ export async function getPrices(crop: CropId, lat: number, lng: number): Promise
 }
 
 export type AiStatus = 'on' | 'no-key' | 'no-server' | 'unreachable';
-export async function aiStatus(): Promise<AiStatus> {
-  try {
-    const h = await api<{ ai: boolean }>('/api/health', { timeoutMs: 8000 });
-    return h.ai ? 'on' : 'no-key';
-  } catch (e) {
-    return e instanceof ApiError && e.code === 'no_server' ? 'no-server' : 'unreachable';
-  }
+let statusCheck: Promise<AiStatus> | null = null;
+/** Asked once per visit; an unreachable server is asked again next time. */
+export function aiStatus(): Promise<AiStatus> {
+  statusCheck ??= (async (): Promise<AiStatus> => {
+    try {
+      const h = await api<{ ai: boolean }>('/api/health', { timeoutMs: 8000 });
+      return h.ai ? 'on' : 'no-key';
+    } catch (e) {
+      return e instanceof ApiError && e.code === 'no_server' ? 'no-server' : 'unreachable';
+    }
+  })().then((s) => {
+    if (s === 'unreachable') statusCheck = null;
+    return s;
+  });
+  return statusCheck;
 }
+
+/** Sends the English plan text to the server for translation; the caller checks the reply. */
+export const requestTranslation = (language: string, text: PlanText) =>
+  api<unknown>('/api/translate', { method: 'POST', body: JSON.stringify({ language, ...text }), timeoutMs: 60_000 });

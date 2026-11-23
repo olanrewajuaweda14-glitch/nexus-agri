@@ -1,4 +1,6 @@
-import { Share2 } from 'lucide-react';
+import { CalendarPlus, Share2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { seasonEvents, toIcs } from '../lib/calendar';
 import type { Farm, PlanAction, Priority } from '../lib/types';
 import type { Insights } from '../lib/useInsights';
 import { key, formatWindow, seasonAhead } from '../lib/engine/plan';
@@ -10,7 +12,14 @@ import { FarmSky } from '../components/FarmSky';
 import { CropGlyph } from '../components/CropGlyph';
 import { CountUp } from '../components/motion';
 import { ListenButton } from '../components/ListenButton';
+import { PlanTranslation } from '../components/PlanTranslation';
+import { planText } from '../lib/translate';
 import { farmNow } from '../lib/useInsights';
+import { useNav } from '../lib/nav';
+import { loadRecords, summarize } from '../lib/records';
+import { KEYS, load } from '../lib/storage';
+import { CROPS } from '../lib/crops';
+import { naira } from '../lib/format';
 
 interface Props {
   farm: Farm;
@@ -20,6 +29,8 @@ interface Props {
 }
 
 export function Today({ farm, ins, done, toggleDone }: Props) {
+  const [calNote, setCalNote] = useState<string | null>(null);
+  const offsetSec = ins.weather.data?.utcOffsetSeconds ?? 3600;
   const { crop, stage, weather, derived, today, forecast } = ins;
   const plan = derived.plan;
   const isDone = (a: PlanAction) => done.has(key(farm, a.id));
@@ -28,6 +39,10 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
   const checkable = plan.filter((a) => a.checkable);
   const loading = !forecast && (weather.status === 'loading' || weather.status === 'idle');
   const ahead = stage.status === 'growing' ? seasonAhead(farm, crop, today, done).slice(0, 5) : [];
+  const englishText = useMemo(
+    () => planText({ cropName: crop.name, stage: { status: stage.status, dap: stage.dap, name: stage.name }, today, plan, labels: { now: PRIORITY_TONE.now.label, week: PRIORITY_TONE.week.label, watch: PRIORITY_TONE.watch.label } }),
+    [crop.name, stage.status, stage.dap, stage.name, today, plan],
+  );
 
   return (
     <div className="space-y-8">
@@ -66,6 +81,8 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         </div>
       </header>
 
+      {stage.status === 'mature' && <SeasonWrapUp farm={farm} cropName={crop.name} />}
+
       <ForecastNotice ins={ins} />
 
       <Section
@@ -93,7 +110,7 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         ) : plan.length === 0 ? (
           <div className="card p-5 text-[15px] text-ink-2">
             {stage.status === 'mature'
-              ? 'The season is over for this crop. Edit the farm to start the next planting.'
+              ? 'No more field jobs this season. Finish your harvest records above, then start the next season.'
               : 'Nothing scheduled this week. A walk through the field to check for pests and weeds is still worth it.'}
           </div>
         ) : (
@@ -107,12 +124,13 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
                   <h3 className={`eyebrow w-fit rounded px-1.5 py-0.5 ${PRIORITY_TONE[p].chip}`}>{PRIORITY_TONE[p].label}</h3>
                   {items.map((a, i) => (
                     <div key={a.id} style={{ ['--i' as string]: i + 1 }}>
-                      <ActionCard action={a} farm={farm} done={isDone(a)} onToggle={() => toggleDone(key(farm, a.id))} defaultOpen={p === 'now' && i === 0 && !isDone(a)} />
+                      <ActionCard action={a} farm={farm} offsetSec={offsetSec} done={isDone(a)} onToggle={() => toggleDone(key(farm, a.id))} defaultOpen={p === 'now' && i === 0 && !isDone(a)} />
                     </div>
                   ))}
                 </div>
               );
             })}
+            {open.length > 0 && <PlanTranslation farm={farm} text={englishText} open={open} />}
           </div>
         )}
       </Section>
@@ -150,15 +168,51 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         </Section>
       )}
 
-      {open.length > 0 && !loading && (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <ListenButton text={spokenPlan(ins, open)} label="Listen to this week's plan" />
-          <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={() => sharePlan(farm, ins, open)}>
-            <Share2 className="h-4 w-4" aria-hidden /> Send this plan on WhatsApp
-          </button>
+      {!loading && (open.length > 0 || stage.status !== 'mature') && (
+        <div className="space-y-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {open.length > 0 && <ListenButton text={spokenPlan(ins, open)} label="Listen to this week's plan" />}
+            {open.length > 0 && (
+              <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={() => sharePlan(farm, ins, open)}>
+                <Share2 className="h-4 w-4" aria-hidden /> Send this plan on WhatsApp
+              </button>
+            )}
+            {stage.status !== 'mature' && (
+              <button type="button" className="btn btn-ghost press w-full sm:w-auto" onClick={() => setCalNote(saveSeasonCalendar(farm, ins, done))}>
+                <CalendarPlus className="h-4 w-4" aria-hidden /> Put the season in my calendar
+              </button>
+            )}
+          </div>
+          {calNote && <p role="status" className="text-sm text-ink-2">{calNote}</p>}
         </div>
       )}
     </div>
+  );
+}
+
+/** After maturity: the season's totals and a clear way into the next one. */
+function SeasonWrapUp({ farm, cropName }: { farm: Farm; cropName: string }) {
+  const { go, startSeason } = useNav();
+  const budget = load(KEYS.budget(`${farm.id}:${farm.crop}`), CROPS[farm.crop].exampleBudget);
+  const s = summarize(loadRecords(farm), budget, farm.sizeHa);
+  return (
+    <section className="card space-y-4 border-leaf/40 bg-leaf-soft/40 p-4" aria-labelledby="wrapup-h">
+      <div>
+        <h2 id="wrapup-h" className="font-display text-xl font-semibold">{cropName} season: wrapping up</h2>
+        <p className="mt-1 text-[15px] text-ink-2">
+          Record your harvest and sales, then start the next season. This season's totals are kept as your farm's track record.
+        </p>
+      </div>
+      <dl className="grid grid-cols-3 gap-3 text-sm">
+        <div><dt className="text-ink-3">Harvested</dt><dd className="num text-lg font-medium">{s.harvestedKg > 0 ? `${(s.harvestedKg / 1000).toFixed(2)} t` : '—'}</dd></div>
+        <div><dt className="text-ink-3">Spent</dt><dd className="num text-lg font-medium">{naira(s.spent, true)}</dd></div>
+        <div><dt className="text-ink-3">Sales</dt><dd className="num text-lg font-medium">{naira(s.sales, true)}</dd></div>
+      </dl>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn btn-ghost press" onClick={() => go('money', { money: 'records' })}>Record harvest or sales</button>
+        <button type="button" className="btn btn-primary press" onClick={startSeason}>Start next season</button>
+      </div>
+    </section>
   );
 }
 
@@ -205,6 +259,19 @@ function spokenPlan(ins: Insights, actions: PlanAction[]) {
   if (first?.how) parts.push(`For ${first.title.toLowerCase()}: ${first.how}`);
   if (ins.derived.spray?.next) parts.push(`Next safe spray window: ${formatWindow(ins.derived.spray.next, ins.today)}.`);
   return say(parts.join(' '));
+}
+
+/** Downloads the rest of the season as a calendar file and says what to do with it. */
+function saveSeasonCalendar(farm: Farm, ins: Insights, done: Set<string>): string {
+  const events = seasonEvents(farm, ins.crop, ins.today, done);
+  if (!events.length) return 'No field jobs left to remind you about this season.';
+  const ics = toIcs(events, `Nexus Agri — ${farm.name}`, ins.weather.data?.utcOffsetSeconds ?? 3600);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+  a.download = `nexus-agri-${farm.name.replace(/[^\w-]+/g, '-').toLowerCase()}-season.ics`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return `Saved ${events.length} reminders. Open the downloaded file to add them to your calendar (each one alerts you at 7 am). If your phone can't open it, use "Remind me" on each job instead.`;
 }
 
 function sharePlan(farm: Farm, ins: Insights, actions: PlanAction[]) {

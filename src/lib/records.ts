@@ -17,9 +17,10 @@ export interface FarmRecord {
   note?: string;
 }
 
-export const recordsKey = (farm: Farm) => `na:records:${farm.id}:${farm.plantingDate}`;
+/** Records are filed per farm and season. Pass a `seasonId` to read a past season. */
+export const recordsKey = (farm: Farm, seasonId = farm.seasonId ?? farm.plantingDate) => `na:records:${farm.id}:${seasonId}`;
 
-export const loadRecords = (farm: Farm) => load<FarmRecord[]>(recordsKey(farm), []);
+export const loadRecords = (farm: Farm, seasonId?: string) => load<FarmRecord[]>(recordsKey(farm, seasonId), []);
 
 /** Appends one entry to this planting's record book. */
 export function addRecord(farm: Farm, r: Omit<FarmRecord, 'id'>): FarmRecord {

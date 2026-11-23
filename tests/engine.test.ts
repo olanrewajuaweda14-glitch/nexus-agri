@@ -269,3 +269,53 @@ describe('edge cases', () => {
     expect(sprayOutlook(w.hourly, `${addDays(TODAY, 30)}T08:00`).hours).toHaveLength(0);
   });
 });
+
+describe('water log', () => {
+  const maize = CROPS.maize;
+  const dryWeek = () => makeWeather(TODAY, { day: () => ({ rain: 0, et0: 5.5 }) });
+  const plantedAt = addDays(TODAY, -50);
+  it('a full irrigation refills the root zone that day', () => {
+    const w = dryWeek();
+    const without = waterBalance(w.daily, TODAY, maize, plantedAt, LOAM);
+    expect(without.stressedNow).toBe(true);
+    const withLog = waterBalance(w.daily, TODAY, maize, plantedAt, LOAM, [{ id: 'a', date: TODAY, kind: 'irrigation', full: true }]);
+    expect(withLog.depletionNow).toBe(0);
+    expect(withLog.availableNow).toBe(1);
+    expect(withLog.stressedNow).toBe(false);
+    expect(withLog.days[withLog.todayIndex].refilled).toBe(true);
+  });
+  it('irrigation in mm is added; a rain gauge reading replaces the model', () => {
+    const w = dryWeek();
+    const base = waterBalance(w.daily, TODAY, maize, plantedAt, LOAM);
+    const yesterday = addDays(TODAY, -1);
+    const irrigated = waterBalance(w.daily, TODAY, maize, plantedAt, LOAM, [{ id: 'i', date: yesterday, kind: 'irrigation', mm: 20 }]);
+    expect(irrigated.depletionNow).toBeLessThan(base.depletionNow);
+    expect(irrigated.days.find((d) => d.date === yesterday)!.irrigation).toBe(20);
+
+    const wetModel = makeWeather(TODAY, { day: (o) => (o === -1 ? { rain: 40, prob: 100 } : { rain: 0 }) });
+    const gauge = waterBalance(wetModel.daily, TODAY, maize, plantedAt, LOAM, [{ id: 'g', date: yesterday, kind: 'rain', mm: 0 }]);
+    const model = waterBalance(wetModel.daily, TODAY, maize, plantedAt, LOAM);
+    const y = gauge.days.find((d) => d.date === yesterday)!;
+    expect(y.observed).toBe(true);
+    expect(y.rain).toBe(0); // the farmer's gauge says it did not rain there
+    expect(gauge.depletionNow).toBeGreaterThan(model.depletionNow);
+  });
+  it('ignores log entries on future dates', () => {
+    const w = dryWeek();
+    const base = waterBalance(w.daily, TODAY, maize, plantedAt, LOAM);
+    const future = waterBalance(w.daily, TODAY, maize, plantedAt, LOAM, [{ id: 'f', date: addDays(TODAY, 2), kind: 'irrigation', full: true }]);
+    expect(future.days.map((d) => d.depletion)).toEqual(base.days.map((d) => d.depletion));
+  });
+  it('a refill changes the plan from "irrigate" to "no irrigation needed"', () => {
+    const w = dryWeek();
+    const farm = farmAt(60, { water: 'irrigated' });
+    const crop = scaledCrop('maize', 'medium');
+    const stage = stageFor(crop, farm.plantingDate, TODAY);
+    const spray = sprayOutlook(w.hourly, `${TODAY}T06:00`);
+    const before = buildPlan({ farm, crop, stage, today: TODAY, weather: w, water: waterBalance(w.daily, TODAY, crop, farm.plantingDate, LOAM), spray, soilFindings: [], climate: null, done: new Set() });
+    expect(before.some((a) => a.id === 'irrigate' && a.priority === 'now')).toBe(true);
+    const water = waterBalance(w.daily, TODAY, crop, farm.plantingDate, LOAM, [{ id: 'x', date: TODAY, kind: 'irrigation', full: true }]);
+    const after = buildPlan({ farm, crop, stage, today: TODAY, weather: w, water, spray, soilFindings: [], climate: null, done: new Set() });
+    expect(after.some((a) => a.id === 'irrigate' && a.priority === 'now')).toBe(false);
+  });
+});
