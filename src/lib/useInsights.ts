@@ -4,7 +4,8 @@ import { getClimate, getSoil, getWeather } from './data/api';
 import { scaledCrop } from './crops';
 import { stageFor } from './engine/stage';
 import { interpretSoil, waterLimits } from './engine/soil';
-import { waterBalance } from './engine/water';
+import { waterBalance, type WaterLogEntry } from './engine/water';
+import { load, save } from './storage';
 import { sprayOutlook } from './engine/spray';
 import { buildPlan, key } from './engine/plan';
 import { localToday } from './dates';
@@ -57,6 +58,19 @@ export function useInsights(farm: Farm, done: Set<string>) {
   const [soil, reloadSoil] = useSource<SoilBundle>(getSoil, farm.lat, farm.lng);
 
   const crop = useMemo(() => scaledCrop(farm.crop, farm.maturity), [farm.crop, farm.maturity]);
+  // The farmer's rain-gauge readings and irrigations correct the water balance.
+  const logKey = `na:waterlog:${farm.id}`;
+  const [waterLog, setWaterLogState] = useState<WaterLogEntry[]>(() => load(logKey, []));
+  const setWaterLog = useCallback(
+    (next: WaterLogEntry[]) => {
+      // Older than the 30-day balance window: no longer used, so not kept.
+      const cutoff = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+      const kept = next.filter((e) => e.date >= cutoff);
+      save(logKey, kept);
+      setWaterLogState(kept);
+    },
+    [logKey],
+  );
   // Today's date at the farm, from the clock — not from the saved forecast, which may be days old when offline.
   const today = weather.data ? farmNow(weather.data).slice(0, 10) : localToday();
   // A saved forecast is only usable while it still covers today.
@@ -67,14 +81,14 @@ export function useInsights(farm: Farm, done: Set<string>) {
   const findings = useMemo(() => interpretSoil(soilSummary, crop), [soilSummary, crop]);
 
   const derived = useMemo(() => {
-    const water = w ? waterBalance(w.daily, today, crop, farm.plantingDate, limits) : null;
+    const water = w ? waterBalance(w.daily, today, crop, farm.plantingDate, limits, waterLog) : null;
     const spray = w ? sprayOutlook(w.hourly, farmNow(w)) : null;
     // Build with nothing ticked so finished jobs stay on screen (struck through) for the week;
     // `openPlan` is what still needs doing.
     const plan = buildPlan({ farm, crop, stage, today, weather: w, water, spray, soilFindings: findings, climate: climate.data, done: new Set() });
     const openPlan = plan.filter((a) => !(a.checkable && done.has(key(farm, a.id))));
     return { water, spray, plan, openPlan, forecastOk: !!w };
-  }, [w, today, crop, farm, stage, limits, findings, climate.data, done]);
+  }, [w, today, crop, farm, stage, limits, findings, climate.data, done, waterLog]);
 
   const refresh = useCallback(() => {
     reloadWeather(true);
@@ -82,7 +96,7 @@ export function useInsights(farm: Farm, done: Set<string>) {
     reloadSoil(true);
   }, [reloadWeather, reloadClimate, reloadSoil]);
 
-  return { weather, climate, soil, crop, stage, soilSummary, limits, findings, derived, today, forecast: w, refresh };
+  return { weather, climate, soil, crop, stage, soilSummary, limits, findings, derived, today, forecast: w, refresh, waterLog, setWaterLog };
 }
 
 export type Insights = ReturnType<typeof useInsights>;

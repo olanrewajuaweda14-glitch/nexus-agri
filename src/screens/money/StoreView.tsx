@@ -9,6 +9,7 @@ import { CountUp } from '../../components/motion';
 import { MarketPrice, type useMarketPrice } from '../../components/MarketPrice';
 import { seasonalForecast } from '../../lib/data/prices';
 import { DryCheck } from '../../components/DryCheck';
+import { seasonOf } from '../../lib/seasons';
 
 interface Inputs {
   tonnes: number;
@@ -23,7 +24,7 @@ interface Inputs {
 }
 
 export function StoreView({ farm, budget, market }: { farm: Farm; budget: Budget; market: ReturnType<typeof useMarketPrice> }) {
-  const key = `na:store:${farm.id}:${farm.plantingDate}`;
+  const key = `na:store:${farm.id}:${seasonOf(farm)}`;
   const crop = CROPS[farm.crop];
   const perishable = farm.crop === 'tomato' || farm.crop === 'cassava';
   const defaults: Inputs = {

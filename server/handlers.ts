@@ -11,7 +11,7 @@ import { getClimate, getPriceRows, getSoil, getWeather, reverseGeocode, Upstream
 import { summarizePrices } from '../src/lib/data/prices.js';
 import { CROPS } from '../src/lib/crops.js';
 import type { CropId } from '../src/lib/types.js';
-import { ai, AiFailed, AiUnavailable, ask, diagnose, LANGUAGES, MODEL } from './ai.js';
+import { ai, AiFailed, AiUnavailable, ask, diagnose, LANGUAGES, MODEL, translatePlan } from './ai.js';
 
 export interface ApiRequest {
   route: string;
@@ -32,7 +32,7 @@ export interface ApiResponse {
 // Per-instance memory. On serverless this resets with each cold start, so it
 // blunts bursts rather than enforcing a hard quota.
 const hits = new Map<string, { n: number; reset: number }>();
-const LIMITS: Record<string, number> = { weather: 60, climate: 30, soil: 20, place: 20, prices: 30, ask: 20, diagnose: 10 };
+const LIMITS: Record<string, number> = { weather: 60, climate: 30, soil: 20, place: 20, prices: 30, ask: 20, diagnose: 10, translate: 10 };
 
 function rateLimited(route: string, ip: string): ApiResponse | null {
   const max = LIMITS[route];
@@ -114,6 +114,27 @@ const POST: Record<string, Handler> = {
     if (typeof imageBase64 !== 'string' || imageBase64.length < 1000) return bad('image_required');
     if (!/^image\/(jpeg|png|webp)$/.test(mimeType)) return bad('bad_image_type');
     return ok(await diagnose({ imageBase64, mimeType, crop: String(crop), stage: String(stage), notes: String(notes), language: String(language), weatherNote: String(weatherNote) }));
+  },
+  translate: async ({ body }) => {
+    const { language, heading, labels, items } = (body ?? {}) as any;
+    if (typeof language !== 'string' || language === 'en' || !Object.hasOwn(LANGUAGES, language)) return bad('bad_language');
+    const text = (v: unknown, max: number) => typeof v === 'string' && v.length <= max;
+    if (!text(heading, 300) || !heading.trim()) return bad('bad_heading');
+    if (!labels || typeof labels !== 'object' || !['now', 'week', 'watch'].every((k) => text(labels[k], 60))) return bad('bad_labels');
+    if (!Array.isArray(items) || items.length === 0 || items.length > 25) return bad('bad_items');
+    const ids = new Set<string>();
+    for (const i of items) {
+      if (!i || !text(i.id, 80) || !text(i.title, 200) || !text(i.when, 200) || !text(i.how ?? '', 1500) || ids.has(i.id)) return bad('bad_items');
+      ids.add(i.id);
+    }
+    return ok(
+      await translatePlan({
+        language,
+        heading,
+        labels: { now: labels.now, week: labels.week, watch: labels.watch },
+        items: items.map((i: any) => ({ id: i.id, title: i.title, when: i.when, how: i.how ?? '' })),
+      }),
+    );
   },
 };
 

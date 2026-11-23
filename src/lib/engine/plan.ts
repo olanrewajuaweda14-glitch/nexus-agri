@@ -5,6 +5,7 @@ import type { StageInfo } from './stage';
 import type { WaterBalance } from './water';
 import { mainBlocker, type SprayOutlook, type SprayWindow } from './spray';
 import type { SoilFinding } from './soil';
+import { seasonOf } from '../seasons.js';
 
 export interface PlanInput {
   farm: Farm;
@@ -58,6 +59,7 @@ function fertilizerTiming(input: PlanInput, _task: CropTask, windowEndDate: stri
   if (!weather || !water) {
     return {
       when: 'check soil and forecast first',
+      date: undefined as string | undefined,
       why: ['No forecast loaded. Apply only when the topsoil is moist and no heavy rain is expected for a day — rain straight after application washes fertilizer off.'],
       sources: [] as string[],
     };
@@ -99,18 +101,19 @@ function fertilizerTiming(input: PlanInput, _task: CropTask, windowEndDate: stri
     why.push('No ideal day this week — heavy rain on most days would wash fertilizer away. Apply in the first dry spell after the rain.');
   }
   if (heavyDay) why.push(`Avoid ${relativeDay(heavyDay.date, today)}: ${Math.round(heavyDay.rain)} mm forecast (${heavyDay.prob}% chance).`);
-  return { when: best ? relativeDay(best.date, today) : 'after next good rain', why, sources: [SRC.forecast, SRC.balance] };
+  return { when: best ? relativeDay(best.date, today) : 'after next good rain', date: best?.date, why, sources: [SRC.forecast, SRC.balance] };
 }
 
 function sprayTiming(input: PlanInput) {
   const { spray, today } = input;
   if (!spray) {
-    return { when: 'calm, dry morning', why: ['No forecast loaded. Spray in daylight with a light breeze (3–15 km/h), below 30 °C, and only if no rain is expected for 4 hours.'] };
+    return { when: 'calm, dry morning', date: undefined as string | undefined, why: ['No forecast loaded. Spray in daylight with a light breeze (3–15 km/h), below 30 °C, and only if no rain is expected for 4 hours.'] };
   }
   if (spray.next) {
     const extra = spray.windows.slice(1, 3).map((w) => formatWindow(w, today));
     return {
       when: formatWindow(spray.next, today),
+      date: spray.next.start.slice(0, 10),
       why: [
         `Next safe spray window: ${formatWindow(spray.next, today)} — wind 3–15 km/h, no rain for 4 h after, below 30 °C.`,
         ...(extra.length ? [`Backup: ${extra.join('; ')}.`] : []),
@@ -120,6 +123,7 @@ function sprayTiming(input: PlanInput) {
   const blocker = mainBlocker(spray.hours);
   return {
     when: 'no safe window in 3 days',
+    date: undefined as string | undefined,
     why: [`No safe spray window in the next 72 hours${blocker ? `, mainly because of ${blocker}` : ''}. Spraying now risks drift or wash-off. Check again tomorrow.`],
   };
 }
@@ -175,6 +179,7 @@ export function buildPlan(input: PlanInput): PlanAction[] {
       actions.push({
         id, kind: task.kind, priority: 'week', checkable: true,
         title: task.title,
+        date: dap < task.fromDap ? windowStart : today,
         when: dap < task.fromDap ? `from ${relativeDay(windowStart, today)}` : task.repeatDays === 7 ? 'this week' : `every ${task.repeatDays} days`,
         why: [`${crop.name} is at day ${dap} (${stage.name.toLowerCase()}). This check runs until day ${task.toDap}.`],
         how: task.how,
@@ -195,6 +200,8 @@ export function buildPlan(input: PlanInput): PlanAction[] {
 
     const why: string[] = [];
     let when = '';
+    // The day to remind about: today if it's due or late, otherwise when the window opens.
+    let date = upcoming ? windowStart : today;
     if (overdue) {
       why.push(`The usual window (day ${task.fromDap}–${task.toDap}) closed ${dap - task.toDap} day${dap - task.toDap === 1 ? '' : 's'} ago. Do it as soon as possible — or tick it off if it is already done.`);
       when = 'overdue';
@@ -211,12 +218,14 @@ export function buildPlan(input: PlanInput): PlanAction[] {
       const t = fertilizerTiming(input, task, windowEnd);
       why.push(...t.why);
       when = overdue ? `overdue · ${t.when}` : t.when;
+      if (t.date) date = t.date;
       sources.push(...t.sources);
     }
     if (task.needsSprayWindow && !upcoming) {
       const t = sprayTiming(input);
       why.push(...t.why);
       when = t.when;
+      if (t.date) date = t.date;
       sources.push(SRC.forecast);
     }
     if (task.kind === 'harvest') {
@@ -225,7 +234,7 @@ export function buildPlan(input: PlanInput): PlanAction[] {
     }
 
     const how = task.dose ? `${task.how} ${doseForFarm(task.dose, farm.sizeHa)}` : task.how;
-    actions.push({ id: task.id, kind: task.kind, priority, title: task.title, when, why, how, sources, checkable: true, overdue });
+    actions.push({ id: task.id, kind: task.kind, priority, title: task.title, when, why, how, sources, checkable: true, overdue, date });
   }
 
   if (!weather || !water) return sortPlan(actions);
@@ -344,7 +353,7 @@ export function seasonAhead(farm: Farm, crop: CropDef, today: string, done: Set<
     .sort((a, b) => a.start.localeCompare(b.start));
 }
 
-export const key = (farm: Farm, id: string) => `${farm.id}:${farm.plantingDate}:${id}`;
+export const key = (farm: Farm, id: string) => `${farm.id}:${seasonOf(farm)}:${id}`;
 
 const ORDER: Record<Priority, number> = { now: 0, week: 1, watch: 2 };
 function sortPlan(a: PlanAction[]) {

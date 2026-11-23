@@ -187,6 +187,17 @@ export function WaterChart({ water }: { water: WaterBalance }) {
       <path d={stress} fill="none" stroke="var(--color-clay)" strokeWidth="1.5" strokeDasharray="5 4" />
       <path d={line} fill="none" stroke="var(--color-rain)" strokeWidth="2" pathLength={1} className="draw" />
 
+      {days.map((d, i) => (d.irrigation || d.refilled) && (
+        <g key={`irr-${d.date}`}>
+          <rect x={x(i) - barW / 2} y={H - 18 - 30} width={barW} height={30} fill="var(--color-leaf)" opacity=".85" rx="1" className="grow-y" style={{ transformBox: 'fill-box' }} />
+          <title>{d.refilled ? 'Irrigated fully (your log)' : `Irrigated ${d.irrigation} mm (your log)`}</title>
+        </g>
+      ))}
+      {days.map((d, i) => d.observed && (
+        <circle key={`obs-${d.date}`} cx={x(i)} cy={H - 18 - rainY(d.rain) - 5} r="2.5" fill="var(--color-rain)">
+          <title>{`Your gauge: ${d.rain} mm`}</title>
+        </circle>
+      ))}
       {days.map((d, i) => d.rain > 0.5 && (
         <rect key={d.date} x={x(i) - barW / 2} y={H - 18 - rainY(d.rain)} width={barW} height={rainY(d.rain)} fill="var(--color-rain)" opacity={d.forecast ? 0.45 : 0.85} rx="1" className="grow-y" style={{ transformBox: 'fill-box', ['--i' as string]: i * 0.5 }} />
       ))}

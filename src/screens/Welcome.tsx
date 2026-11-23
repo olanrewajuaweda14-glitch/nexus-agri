@@ -15,7 +15,7 @@ const SEASON = [
   { dap: 116, job: 'Harvest & dry', day: 'Day 116' },
 ];
 
-export function Welcome({ farms = [], onStart, onSample, onContinue }: { farms?: Farm[]; onStart: () => void; onSample: () => void; onContinue?: (id: string) => void }) {
+export function Welcome({ farms = [], onStart, onSample, onContinue, onBackup }: { farms?: Farm[]; onStart: () => void; onSample: () => void; onContinue?: (id: string) => void; onBackup?: () => void }) {
   const hasSample = farms.some((f) => f.id === 'sample');
   return (
     <div className="mx-auto flex min-h-dvh max-w-4xl flex-col px-5 pb-10 pt-8 sm:px-8 sm:pt-12">
@@ -57,12 +57,18 @@ export function Welcome({ farms = [], onStart, onSample, onContinue }: { farms?:
             <div className="flex flex-wrap gap-3">
               <button type="button" className="btn btn-ghost press" onClick={onStart}><Plus className="h-4 w-4" aria-hidden /> Add a field</button>
               {!hasSample && <button type="button" className="btn press text-ink-2 hover:text-ink" onClick={onSample}>Try a sample farm</button>}
+              {onBackup && <button type="button" className="btn press text-ink-2 hover:text-ink" onClick={onBackup}>Back up or move phones</button>}
             </div>
           </div>
         ) : (
           <div className="mt-8 flex flex-wrap gap-3 [animation:rise_700ms_var(--ease-out)_both_340ms]">
             <button type="button" className="btn btn-primary press px-6 py-3 text-base shadow-[0_8px_24px_-12px_var(--color-leaf)]" onClick={onStart}>Set up my farm</button>
             <button type="button" className="btn btn-ghost press px-6 py-3 text-base" onClick={onSample}>Try a sample farm</button>
+            {onBackup && (
+              <button type="button" className="btn press w-full text-sm text-ink-2 hover:text-ink sm:w-auto" onClick={onBackup}>
+                New phone? Restore from a backup
+              </button>
+            )}
           </div>
         )}
 

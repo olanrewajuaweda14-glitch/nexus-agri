@@ -1,5 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarCheck, ChevronDown, CloudSun, Coins, Layers, MessageCircle, Pencil, Plus, RefreshCw, WifiOff } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { CalendarCheck, ChevronDown, CloudSun, Coins, Layers, MessageCircle, Pencil, Plus, RefreshCw, WifiOff, HardDriveDownload } from 'lucide-react';
 import type { Farm } from './lib/types';
 import { KEYS, load, remove, removeByPrefix, save } from './lib/storage';
 import { addDays, localToday } from './lib/dates';
@@ -8,6 +8,7 @@ import { ago } from './lib/format';
 import { CROPS } from './lib/crops';
 import { Logo } from './components/Logo';
 import { Welcome } from './screens/Welcome';
+import { Backup } from './screens/Backup';
 import { Today } from './screens/Today';
 import { Weather } from './screens/Weather';
 import { Field } from './screens/Field';
@@ -17,6 +18,8 @@ import { Ask } from './screens/Ask';
 // The farm form carries Leaflet (~45 KB gzip); load it only when a field is being set up.
 const FarmForm = lazy(() => import('./screens/FarmForm').then((m) => ({ default: m.FarmForm })));
 
+import { loadRecords } from './lib/records';
+import { summarizeSeason, startNextSeason } from './lib/seasons';
 import { NavContext, type Intent } from './lib/nav';
 
 type Tab = 'today' | 'weather' | 'field' | 'money' | 'ask';
@@ -71,7 +74,8 @@ export function App() {
   const [farms, setFarms] = useState<Farm[]>(() => load(KEYS.farms, []));
   const [activeId, setActiveId] = useState<string | null>(() => load(KEYS.active, null));
   // A fresh open always starts on the welcome page; a reload keeps your place.
-  const [mode, setMode] = useState<'welcome' | 'app' | 'new' | 'edit'>(FRESH_OPEN ? 'welcome' : 'app');
+  const [mode, setMode] = useState<'welcome' | 'app' | 'new' | 'edit' | 'season' | 'backup'>(FRESH_OPEN ? 'welcome' : 'app');
+  const [backupFrom, setBackupFrom] = useState<'welcome' | 'app'>('app');
   // Where Cancel on the add-field form returns to.
   const [formFrom, setFormFrom] = useState<'welcome' | 'app'>('app');
   const goHome = () => {
@@ -87,6 +91,17 @@ export function App() {
   };
   const [done, setDone] = useState<Set<string>>(() => new Set(load<string[]>(KEYS.done, [])));
 
+  // Each mode is its own page (a form, the backup screen): open it at the top,
+  // not at the scroll position of the page the button was on.
+  const firstMode = useRef(true);
+  useLayoutEffect(() => {
+    if (firstMode.current) {
+      firstMode.current = false;
+      return;
+    }
+    window.scrollTo({ top: 0 });
+  }, [mode]);
+
   useEffect(() => { save(KEYS.farms, farms); }, [farms]);
   useEffect(() => { save(KEYS.active, activeId); }, [activeId]);
 
@@ -101,11 +116,23 @@ export function App() {
     });
   }, []);
 
+  /** Files the current season (with its record-book totals) and opens the next one. */
+  const saveNextSeason = (current: Farm, next: Farm) => {
+    const budget = load(KEYS.budget(`${current.id}:${current.crop}`), CROPS[current.crop].exampleBudget);
+    const summary = summarizeSeason(current, loadRecords(current), budget, localToday());
+    upsert(startNextSeason(current, next, summary));
+    clearHash();
+  };
+
   const upsert = (f: Farm) => {
     setFarms((fs) => (fs.some((x) => x.id === f.id) ? fs.map((x) => (x.id === f.id ? f : x)) : [...fs, f]));
     setActiveId(f.id);
     setMode('app');
   };
+
+  if (mode === 'backup') {
+    return <Backup onBack={() => setMode(farm ? backupFrom : 'welcome')} />;
+  }
 
   if (mode === 'welcome' || (!farm && mode === 'app')) {
     return (
@@ -120,28 +147,39 @@ export function App() {
           upsert(farms.find((f) => f.id === 'sample') ?? SAMPLE_FARM());
         }}
         onContinue={openFarm}
+        onBackup={() => {
+          setBackupFrom('welcome');
+          setMode('backup');
+        }}
       />
     );
   }
 
-  if (mode === 'new' || mode === 'edit' || !farm) {
-    const editing = mode === 'edit' ? farm ?? undefined : undefined;
+  if (mode === 'new' || mode === 'edit' || mode === 'season' || !farm) {
+    const editing = mode === 'edit' || mode === 'season' ? farm ?? undefined : undefined;
+    const season = mode === 'season' && !!farm;
     return (
       <div className="mx-auto max-w-3xl px-4 pb-16 pt-6 sm:px-6">
         <Logo />
-        <h1 className="mb-8 mt-8 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{editing ? `Edit ${editing.name}` : 'Add a field'}</h1>
+        <h1 className="mb-8 mt-8 font-display text-3xl font-semibold tracking-tight sm:text-4xl">{season ? `Next season on ${editing!.name}` : editing ? `Edit ${editing.name}` : 'Add a field'}</h1>
+        {season && (
+          <p className="-mt-5 mb-8 max-w-xl text-[15px] text-ink-2">
+            This season's record book and totals are filed under the farm's track record, and the new season starts with a fresh plan and record book. The field's location and size stay the same.
+          </p>
+        )}
         <Suspense fallback={<div className="skeleton h-80" />}>
         <FarmForm
-          key={editing?.id ?? 'new'}
+          key={`${editing?.id ?? 'new'}:${mode}`}
           initial={editing}
-          onSave={upsert}
+          mode={season ? 'season' : undefined}
+          onSave={(f) => (season && farm ? saveNextSeason(farm, f) : upsert(f))}
           onCancel={() => setMode(editing ? 'app' : formFrom)}
           onDelete={
-            editing
+            editing && !season
               ? () => {
                   setFarms((fs) => fs.filter((x) => x.id !== editing.id));
-                  remove(KEYS.chat(editing.id));
-                  removeByPrefix(KEYS.budget(`${editing.id}:`), `na:records:${editing.id}:`, `na:prices:${editing.id}`, `na:store:${editing.id}:`);
+                  [KEYS.chat(editing.id), `na:prices:${editing.id}`, `na:waterlog:${editing.id}`].forEach(remove);
+                  removeByPrefix(KEYS.budget(`${editing.id}:`), `na:records:${editing.id}:`, `na:store:${editing.id}:`, `na:cache:plan-tr:${editing.id}:`);
                   setDone((prev) => {
                     const next = new Set([...prev].filter((k) => !k.startsWith(`${editing.id}:`)));
                     save(KEYS.done, [...next]);
@@ -171,6 +209,11 @@ export function App() {
         setMode('new');
       }}
       onEdit={() => setMode('edit')}
+      onNewSeason={() => setMode('season')}
+      onBackup={() => {
+        setBackupFrom('app');
+        setMode('backup');
+      }}
       onUpdateFarm={(patch) => upsert({ ...farm, ...patch })}
       onHome={goHome}
     />
@@ -187,9 +230,11 @@ interface ShellProps {
   onEdit: () => void;
   onUpdateFarm: (patch: Partial<Farm>) => void;
   onHome: () => void;
+  onNewSeason: () => void;
+  onBackup: () => void;
 }
 
-function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdateFarm, onHome }: ShellProps) {
+function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdateFarm, onHome, onNewSeason, onBackup }: ShellProps) {
   const [tab, setTab] = useState<Tab>(tabFromHash);
   // Landing instructions from the screen that sent you here; `visit` remounts
   // the target screen so it picks them up even if it is already open.
@@ -275,7 +320,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
         <header className="sticky top-0 z-20 border-b border-line bg-paper/90 backdrop-blur">
           <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-2.5 sm:px-6">
             <button type="button" onClick={onHome} className="rounded-lg p-0.5 md:hidden" aria-label="Nexus Agri — home page"><Logo compact /></button>
-            <FarmSwitcher farm={farm} farms={farms} onSwitch={onSwitch} onAdd={onAdd} />
+            <FarmSwitcher farm={farm} farms={farms} onSwitch={onSwitch} onAdd={onAdd} onBackup={onBackup} />
             <button type="button" onClick={onEdit} className="rounded-full p-2 text-ink-3 hover:bg-card hover:text-ink" aria-label={`Edit ${farm.name}`}>
               <Pencil className="h-4 w-4" />
             </button>
@@ -290,7 +335,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
         </header>
 
         <main className="mx-auto max-w-3xl px-4 pb-28 pt-6 sm:px-6 md:pb-16">
-          <NavContext.Provider value={{ go }}>
+          <NavContext.Provider value={{ go, startSeason: onNewSeason }}>
             <div key={`${tab}:${visit}`} className="page-enter">{screen}</div>
           </NavContext.Provider>
         </main>
@@ -321,7 +366,7 @@ function Shell({ farm, farms, done, toggleDone, onSwitch, onAdd, onEdit, onUpdat
   );
 }
 
-function FarmSwitcher({ farm, farms, onSwitch, onAdd }: { farm: Farm; farms: Farm[]; onSwitch: (id: string) => void; onAdd: () => void }) {
+function FarmSwitcher({ farm, farms, onSwitch, onAdd, onBackup }: { farm: Farm; farms: Farm[]; onSwitch: (id: string) => void; onAdd: () => void; onBackup: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative min-w-0">
@@ -354,6 +399,9 @@ function FarmSwitcher({ farm, farms, onSwitch, onAdd }: { farm: Farm; farms: Far
             <li className="mt-1 border-t border-line-2 pt-1">
               <button type="button" onClick={() => { setOpen(false); onAdd(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-medium text-leaf hover:bg-paper">
                 <Plus className="h-4 w-4" /> Add a field
+              </button>
+              <button type="button" onClick={() => { setOpen(false); onBackup(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left font-medium text-ink-2 hover:bg-paper hover:text-ink">
+                <HardDriveDownload className="h-4 w-4" /> Back up or move phones
               </button>
             </li>
           </ul>

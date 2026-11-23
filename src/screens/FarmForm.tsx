@@ -4,18 +4,20 @@ import type { CropId, Farm, Maturity, WaterSource } from '../lib/types';
 import { CROP_LIST, CROPS } from '../lib/crops';
 import { daysBetween, localToday } from '../lib/dates';
 import { getPlace } from '../lib/data/api';
+import { seasonOf } from '../lib/seasons';
 import { MapPicker } from '../components/MapPicker';
 import { Segmented } from '../components/ui';
 import { AREA_UNITS, centroid, distance, perimeter, polygonArea, selfIntersects, type LatLng } from '../lib/geo';
 
 const ACRE = 0.404686;
 
-export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Farm; onSave: (f: Farm) => void; onCancel?: () => void; onDelete?: () => void }) {
+export function FarmForm({ initial, mode = initial ? 'edit' : 'new', onSave, onCancel, onDelete }: { initial?: Farm; mode?: 'new' | 'edit' | 'season'; onSave: (f: Farm) => void; onCancel?: () => void; onDelete?: () => void }) {
+  const nextSeason = mode === 'season';
   const [name, setName] = useState(initial?.name ?? '');
   const [pt, setPt] = useState<{ lat: number; lng: number } | null>(initial ? { lat: initial.lat, lng: initial.lng } : null);
   const [placeName, setPlaceName] = useState(initial?.placeName ?? '');
   const [crop, setCrop] = useState<CropId>(initial?.crop ?? 'maize');
-  const [planting, setPlanting] = useState(initial?.plantingDate ?? localToday());
+  const [planting, setPlanting] = useState(nextSeason ? localToday() : initial?.plantingDate ?? localToday());
   const [maturity, setMaturity] = useState<Maturity>(initial?.maturity ?? 'medium');
   const [unit, setUnit] = useState<'ha' | 'acre'>('ha');
   const [size, setSize] = useState(String(initial?.sizeHa ?? 1));
@@ -131,6 +133,10 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
       id: initial?.id ?? `f${Date.now().toString(36)}`,
       createdAt: initial?.createdAt ?? new Date().toISOString(),
       labSoil: initial?.labSoil,
+      // An edit is a correction to the same season: pin its id so records and
+      // ticked jobs filed under it survive a changed planting date.
+      seasonId: initial ? seasonOf(initial) : undefined,
+      history: initial?.history,
       boundary: boundary.length >= 3 && !crossed ? boundary.map(([a, b]) => [Math.round(a * 1e6) / 1e6, Math.round(b * 1e6) / 1e6] as [number, number]) : undefined,
       name: name.trim(),
       lat: Math.round(pt.lat * 1e5) / 1e5,
@@ -214,7 +220,7 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
         )}
       </Field>
 
-      <Field n={2} label="What's growing?">
+      <Field n={2} label={nextSeason ? 'What are you planting next?' : "What's growing?"}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Crop">
           {CROP_LIST.map((c) => (
             <button
@@ -264,7 +270,7 @@ export function FarmForm({ initial, onSave, onCancel, onDelete }: { initial?: Fa
       </Field>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" className="btn btn-primary" disabled={!valid}>{initial ? 'Save changes' : 'Build my plan'}</button>
+        <button type="submit" className="btn btn-primary" disabled={!valid}>{nextSeason ? 'Start the new season' : initial ? 'Save changes' : 'Build my plan'}</button>
         {onCancel && <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>}
         {onDelete && (
           <button type="button" className="btn ml-auto text-clay hover:bg-clay-soft" onClick={() => confirm(`Delete "${initial?.name}"? This removes its plan and saved data from this device.`) && onDelete()}>

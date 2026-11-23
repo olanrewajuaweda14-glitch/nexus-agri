@@ -17,7 +17,28 @@ export interface Farm {
   labSoil?: Partial<SoilSummary>;
   /** Field boundary measured on the map or by walking it, [lat, lng] corners. */
   boundary?: [number, number][];
+  /**
+   * Stable id of the current season; records, ticked jobs and storage plans are
+   * filed under it. Older farms have none — their season id is the planting date.
+   */
+  seasonId?: string;
+  /** Finished seasons, oldest first. */
+  history?: SeasonSummary[];
   createdAt: string;
+}
+
+/** A finished season, kept as the farm's track record. */
+export interface SeasonSummary {
+  seasonId: string;
+  crop: CropId;
+  plantingDate: string;
+  maturity: Maturity;
+  sizeHa: number;
+  endedAt: string; // YYYY-MM-DD
+  spent: number;
+  sales: number;
+  harvestedKg: number;
+  soldKg: number;
 }
 
 /* ----------------------------- Weather ----------------------------- */
@@ -117,6 +138,8 @@ export interface PlanAction {
   /** Calendar tasks can be ticked off; derived alerts cannot. */
   checkable: boolean;
   overdue?: boolean;
+  /** Suggested day to do it (YYYY-MM-DD), for reminders. Calendar jobs only. */
+  date?: string;
 }
 
 export interface CostLine {

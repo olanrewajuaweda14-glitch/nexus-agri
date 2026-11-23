@@ -15,7 +15,9 @@ export interface Intent {
 
 export interface Nav {
   go: (tab: Tab, intent?: Intent) => void;
+  /** Opens the form that files this season and starts the next one on the same field. */
+  startSeason: () => void;
 }
 
-export const NavContext = createContext<Nav>({ go: () => {} });
+export const NavContext = createContext<Nav>({ go: () => {}, startSeason: () => {} });
 export const useNav = () => useContext(NavContext);

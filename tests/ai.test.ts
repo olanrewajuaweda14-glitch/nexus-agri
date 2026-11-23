@@ -100,6 +100,35 @@ describe('Claude advisor', () => {
     await expect(ai.ask({ question: 'x', language: 'en', context: {}, history: [] })).rejects.toThrow(/too long/);
   });
 
+  it('translates the plan with its own instructions, at low effort, and checks the jobs come back', async () => {
+    const input = {
+      language: 'yo',
+      heading: 'Maize, day 34.',
+      labels: { now: 'Do now', week: 'This week', watch: 'Keep an eye on' },
+      items: [{ id: 'topdress', title: 'Top-dress', when: 'Today', how: '130 kg urea' }, { id: 'faw', title: 'Scout', when: 'This week', how: '' }],
+    };
+    const reply = {
+      heading: 'Àgbàdo, ọjọ́ 34.',
+      labels: { now: 'Ṣe é báyìí', week: 'Ọ̀sẹ̀ yìí', watch: 'Ṣọ́ra fún' },
+      items: [{ id: 'faw', title: 'Ṣàyẹ̀wò', when: 'Ọ̀sẹ̀ yìí', how: 'àfikún' }, { id: 'topdress', title: 'Fi ajile kún un', when: 'Lónìí', how: '130 kg urea' }],
+    };
+    let ai = await load(() => respond(200, message(JSON.stringify(reply))));
+    const out = await ai.translatePlan(input);
+    // Back in the plan's order; nothing added where the English had no "how".
+    expect(out.items.map((i) => i.id)).toEqual(['topdress', 'faw']);
+    expect(out.items[1].how).toBe('');
+    const req = captured[0].body;
+    expect(req.output_config.effort).toBe('low');
+    expect(req.system).toContain('translate the weekly job list');
+    expect(req.system).not.toContain('field advisor');
+    expect(req.messages[0].content).toContain('Translate this plan into Yoruba.');
+    expect(req.messages[0].content).toContain('<plan>');
+
+    ai = await load(() => respond(200, message(JSON.stringify({ ...reply, items: reply.items.slice(0, 1) }))));
+    await expect(ai.translatePlan(input)).rejects.toThrow(/incomplete/);
+    await expect(ai.translatePlan({ ...input, language: 'en' })).rejects.toThrow(/Choose/);
+  });
+
   it('reports itself off without a key and makes no request', async () => {
     vi.resetModules();
     delete process.env.ANTHROPIC_API_KEY;

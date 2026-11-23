@@ -5,6 +5,7 @@ import type { Insights } from '../lib/useInsights';
 import { textureClass } from '../lib/engine/soil';
 import { relativeDay } from '../lib/dates';
 import { useNav } from '../lib/nav';
+import { WaterLog } from '../components/WaterLog';
 import { RootZoneTank, WaterChart } from '../components/charts';
 import { ErrorNote, Section, Skeleton, SourceTag, Stat } from '../components/ui';
 
@@ -48,6 +49,7 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
               <Key swatch="bg-rain-soft border border-rain" label="Water the roots can use" />
               <span className="inline-flex items-center gap-1.5"><svg width="16" height="4" aria-hidden><line x1="0" y1="2" x2="16" y2="2" stroke="var(--color-clay)" strokeWidth="2" strokeDasharray="4 3" /></svg>Stress line — crop slows below this</span>
               <Key swatch="bg-rain" label="Daily rain" />
+              {ins.waterLog.some((e) => e.kind === 'irrigation') && <Key swatch="bg-leaf" label="Irrigation (your log)" />}
             </div>
             <p className="text-sm text-ink-2">
               {water.stressedNow
@@ -64,8 +66,9 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
                 It starts 30 days ago from {water.initialisedFromModel ? 'the weather model’s soil moisture' : 'an assumed half-full profile'} and runs 7 days ahead on the forecast, weighting forecast rain by its probability.
                 Water-holding limits come from {limits.estimated ? 'typical sandy-loam values' : 'your soil’s sand, clay and organic carbon (Saxton & Rawls 2006)'}.
               </p>
-              <p className="mt-2">It does not know about irrigation you have applied, so after irrigating treat the root zone as full.</p>
+              <p className="mt-2">Rain-gauge readings you log replace the model's rain for that day, and irrigation you log is added; "watered fully" refills the root zone.</p>
             </details>
+            <WaterLog entries={ins.waterLog} onChange={ins.setWaterLog} today={today} sizeHa={farm.sizeHa} />
           </div>
         )}
       </Section>
