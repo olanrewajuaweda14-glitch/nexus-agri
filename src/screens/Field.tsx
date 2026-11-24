@@ -83,7 +83,7 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
             )}
             <div className="card grid grid-cols-2 gap-x-6 gap-y-5 p-4 sm:grid-cols-3">
               <Stat label="pH (water)" value={soilSummary.ph ?? '–'} decimals={1} note={`${crop.name} likes ${crop.phRange[0]}–${crop.phRange[1]}`} />
-              <Stat label="Texture" value={<span className="font-sans text-lg">{textureClass(soilSummary.sandPct, soilSummary.clayPct)}</span>} note={soilSummary.sandPct != null ? `${soilSummary.sandPct}% sand · ${soilSummary.clayPct}% clay` : undefined} />
+              <Stat label="Texture" value={<span className="font-sans text-lg">{textureClass(soilSummary.sandPct, soilSummary.clayPct)}</span>} note={soilSummary.sandPct != null ? `${soilSummary.sandPct}% sand, ${soilSummary.clayPct}% clay` : undefined} />
               <Stat label="Organic carbon" value={soilSummary.socGKg != null ? soilSummary.socGKg / 10 : '–'} decimals={2} unit="%" />
               <Stat label="Total nitrogen" value={soilSummary.nitrogenGKg ?? '–'} decimals={2} unit="g/kg" />
               <Stat label="CEC" value={soilSummary.cecCmolKg ?? '–'} decimals={1} unit="cmol/kg" note="nutrient-holding capacity" />
@@ -96,11 +96,11 @@ export function Field({ farm, ins, onUpdateFarm }: { farm: Farm; ins: Insights; 
                   <li key={f.id} className="card flex gap-3 p-4">
                     <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${{ good: 'bg-leaf', warn: 'bg-sun', bad: 'bg-clay', info: 'bg-rain' }[f.tone]}`} aria-hidden />
                     <div>
-                      <p className="font-semibold">{f.title}</p>
+                      <p className="font-bold">{f.title}</p>
                       <p className="mt-0.5 text-[15px] leading-relaxed text-ink-2">{f.detail}</p>
                       {f.id === 'ph-low' && (
                         <button type="button" className="mt-2 text-sm font-medium text-leaf underline-offset-2 hover:underline" onClick={() => nav.go('money', { money: 'shop' })}>
-                          See the lime on your buy list →
+                          See the lime on your buy list
                         </button>
                       )}
                     </div>

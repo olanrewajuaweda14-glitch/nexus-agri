@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Download, Share2, Upload } from 'lucide-react';
-import { backupFileName, collectBackup, LAST_BACKUP_KEY, parseBackup, restoreBackup, type Backup as BackupFile, type BackupSummary } from '../lib/backup';
+import { backupFileName, collectBackup, describeSummary, LAST_BACKUP_KEY, parseBackup, restoreBackup, type Backup as BackupFile, type BackupSummary } from '../lib/backup';
 import { load, save } from '../lib/storage';
 import { Logo } from '../components/Logo';
 
@@ -76,7 +76,7 @@ export function Backup({ onBack }: { onBack: () => void }) {
         </button>
       </div>
       <header>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Back up or move to a new phone</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Back up or move to a new phone</h1>
         <p className="mt-2 text-[15px] text-ink-2">
           Your fields, plans, ticked jobs, budgets, record books, past seasons and water log are saved only on this phone. A backup puts all of it in one small file.
         </p>
@@ -84,7 +84,7 @@ export function Backup({ onBack }: { onBack: () => void }) {
 
       <section className="card space-y-4 p-4" aria-labelledby="save-h">
         <div>
-          <h2 id="save-h" className="font-display text-xl font-semibold">Save a backup</h2>
+          <h2 id="save-h" className="text-xl font-bold">Save a backup</h2>
           <p className="mt-1 text-sm text-ink-2">Last backup: <b className="font-medium text-ink">{ago(last)}</b></p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -102,7 +102,7 @@ export function Backup({ onBack }: { onBack: () => void }) {
 
       <section className="card space-y-4 p-4" aria-labelledby="restore-h">
         <div>
-          <h2 id="restore-h" className="font-display text-xl font-semibold">Restore from a backup</h2>
+          <h2 id="restore-h" className="text-xl font-bold">Restore from a backup</h2>
           <p className="mt-1 text-sm text-ink-2">On a new phone: open this page, choose the backup file, and everything comes back.</p>
         </div>
         <label className="btn btn-ghost press w-fit cursor-pointer">
@@ -114,8 +114,7 @@ export function Backup({ onBack }: { onBack: () => void }) {
           <div className="space-y-3 rounded-xl bg-paper p-3 text-sm">
             <p>
               Backup from <b>{pending.summary.exportedAt ? new Date(pending.summary.exportedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'an unknown date'}</b>:{' '}
-              {pending.summary.farms.length} field{pending.summary.farms.length === 1 ? '' : 's'} ({pending.summary.farms.join(', ')}), {pending.summary.records} record-book entr{pending.summary.records === 1 ? 'y' : 'ies'}
-              {pending.summary.pastSeasons > 0 && `, ${pending.summary.pastSeasons} past season${pending.summary.pastSeasons === 1 ? '' : 's'}`}.
+              {describeSummary(pending.summary)}.
             </p>
             <button type="button" className="btn btn-primary press" onClick={restore}>Replace this phone's data with this backup</button>
           </div>
@@ -124,3 +123,4 @@ export function Backup({ onBack }: { onBack: () => void }) {
     </div>
   );
 }
+

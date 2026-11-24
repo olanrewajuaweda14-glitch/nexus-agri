@@ -34,7 +34,7 @@ export function SprayMix({ farm }: { farm: Farm }) {
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-leaf-soft text-leaf"><FlaskConical className="h-[18px] w-[18px]" aria-hidden /></span>
         <div>
-          <h3 className="font-semibold">Knapsack mix calculator</h3>
+          <h3 className="font-bold">Knapsack mix calculator</h3>
           <p className="text-sm text-ink-2">Too little chemical wastes the spray; too much burns the crop and your money. Use the rate printed on the label.</p>
         </div>
       </div>

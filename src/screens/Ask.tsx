@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Loader2, Send, Trash2 } from 'lucide-react';
 import type { Farm } from '../lib/types';
+import { useHub, type Hub } from '../lib/hub';
+import { ageOn, eggStats, headCount, healthSchedule, lossRate, SPECIES, withdrawals } from '../lib/livestock';
+import { balance, unitText } from '../lib/stock';
+import { localToday } from '../lib/dates';
 import type { Insights } from '../lib/useInsights';
 import { aiStatus, api, ApiError, type AiStatus } from '../lib/data/api';
 import { KEYS, load, save } from '../lib/storage';
@@ -63,8 +67,9 @@ const LANGS = [
   { value: 'ig', label: 'Igbo' },
 ];
 
-export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm; ins: Insights; initialQuestion?: string; initialMode?: 'ask' | 'photo' }) {
-  const [mode, setMode] = useState<'ask' | 'photo'>(initialMode ?? 'ask');
+export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm | null; ins: Insights | null; initialQuestion?: string; initialMode?: 'ask' | 'photo' }) {
+  // Photo checks are for crops, so they need a field.
+  const [mode, setMode] = useState<'ask' | 'photo'>(farm ? initialMode ?? 'ask' : 'ask');
   // A question handed over from another screen (a job card, a photo result). Chat takes it once.
   const [prefill, setPrefill] = useState(initialQuestion ?? '');
   useEffect(() => {
@@ -83,10 +88,10 @@ export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm; i
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="eyebrow">Advisor</div>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Ask about your farm</h1>
+          <h1 className="text-[32px] font-bold leading-tight">Ask about your farm</h1>
+          <p className="mt-1 text-ink-2">Crops, animals, the store, prices: the advisor answers from your own records.</p>
         </div>
-        <Segmented label="Mode" value={mode} onChange={setMode} options={[{ value: 'ask', label: 'Ask' }, { value: 'photo', label: 'Check a photo' }]} />
+        {farm && <Segmented label="Mode" value={mode} onChange={setMode} options={[{ value: 'ask', label: 'Ask' }, { value: 'photo', label: 'Check a crop photo' }]} />}
       </header>
 
       <label className="flex items-center gap-2 text-sm text-ink-2">
@@ -98,7 +103,7 @@ export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm; i
 
       {off && (
         <div className="card p-4 text-[15px]">
-          <p className="font-semibold">{status === 'no-server' ? 'The AI advisor needs the Nexus Agri server.' : 'The AI advisor is switched off on this server.'}</p>
+          <p className="font-bold">{status === 'no-server' ? 'The AI advisor needs the Nexus Agri server.' : 'The AI advisor is switched off on this server.'}</p>
           <p className="mt-1 text-ink-2">
             Everything else — the weekly plan, spray windows, water balance, soil and costs — is calculated on your phone without AI and keeps working.{' '}
             {status === 'no-server' ? (
@@ -111,7 +116,7 @@ export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm; i
       )}
       {status === 'unreachable' && <p className="rounded-lg bg-sun-soft px-3 py-2 text-sm">Can't reach the server right now — questions will fail until the connection is back.</p>}
 
-      {mode === 'ask' ? (
+      {mode === 'ask' || !farm || !ins ? (
         <Chat farm={farm} ins={ins} lang={lang} disabled={off} prefill={prefill} />
       ) : (
         <Photo farm={farm} ins={ins} lang={lang} disabled={off} onFollowUp={(text) => { setPrefill(text); setMode('ask'); }} />
@@ -120,8 +125,35 @@ export function Ask({ farm, ins, initialQuestion, initialMode }: { farm: Farm; i
   );
 }
 
+/** The animals and the store, as numbers the app keeps — nothing invented. */
+function farmWide(hub: Hub) {
+  const today = localToday();
+  const animals = hub.groups.filter((g) => !g.closed).map((g) => {
+    const ev = hub.events[g.id] ?? [];
+    const sp = SPECIES[g.species];
+    const eggs = sp.eggs ? eggStats(g, ev, today) : null;
+    return {
+      name: g.name,
+      kind: sp.name,
+      count: headCount(g, ev, today),
+      ageDays: ageOn(g, today),
+      deathsLast7Days: lossRate(g, ev, today, 7).deaths,
+      layingRateThisWeek: eggs?.rate7 != null ? Math.round(eggs.rate7 * 100) : undefined,
+      layingRateLastWeek: eggs?.ratePrev7 != null ? Math.round(eggs.ratePrev7 * 100) : undefined,
+      healthDue: healthSchedule(g, ev, today).filter((s) => s.status === 'overdue' || s.status === 'due').map((s) => `${s.step.title} (${s.status})`),
+      withdrawalRunning: withdrawals(ev, today).map((w) => w.event.product ?? 'treatment'),
+    };
+  });
+  const store = hub.stock.map((i) => {
+    const q = balance(i.id, hub.moves);
+    return `${i.name}: ${q} ${unitText(i.unit, q)}`;
+  });
+  return { farmName: hub.profile.farmName, animals, store };
+}
+
 /** Compact, factual context for the model — numbers the app computed, nothing invented. */
-function buildContext(farm: Farm, ins: Insights) {
+function buildContext(farm: Farm | null, ins: Insights | null, hub: Hub) {
+  if (!farm || !ins) return { today: localToday(), fields: 'none recorded', ...farmWide(hub) };
   const w = ins.forecast;
   const d = ins.derived;
   const ti = w ? w.daily.time.indexOf(ins.today) : -1;
@@ -136,13 +168,16 @@ function buildContext(farm: Farm, ins: Insights) {
     sprayWindows: d.spray?.windows.slice(0, 3) ?? null,
     soil: { ...ins.soilSummary, source: farm.labSoil ? 'lab + SoilGrids' : 'SoilGrids estimate', findings: ins.findings.map((f) => f.title) },
     climate: ins.climate.data && { last30Mm: ins.climate.data.last30Mm, normal30Mm: ins.climate.data.last30NormalMm },
+    ...farmWide(hub),
   };
 }
 
 const THINKING = ["Reading this week's forecast…", 'Checking soil and water…', "Looking at your crop's stage and jobs…", 'Writing the answer…'];
 
-function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: Insights; lang: string; disabled: boolean; prefill?: string }) {
-  const [turns, setTurns] = useState<Turn[]>(() => load(KEYS.chat(farm.id), []));
+function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm | null; ins: Insights | null; lang: string; disabled: boolean; prefill?: string }) {
+  const hub = useHub();
+  const chatKey = KEYS.chat(farm?.id ?? 'farm');
+  const [turns, setTurns] = useState<Turn[]>(() => load(chatKey, []));
   const [q, setQ] = useState(prefill);
   const input = useRef<HTMLInputElement>(null);
   const [phase, setPhase] = useState(0);
@@ -150,7 +185,7 @@ function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: In
   const [err, setErr] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { save(KEYS.chat(farm.id), turns.slice(-20)); }, [turns, farm.id]);
+  useEffect(() => { save(chatKey, turns.slice(-20)); }, [turns, chatKey]);
   // A handed-over question: focus the box with the cursor at the end, ready to edit or send.
   useEffect(() => {
     if (!prefill || !input.current) return;
@@ -165,10 +200,10 @@ function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: In
   }, [busy]);
   useEffect(() => { end.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [turns.length, busy]);
 
+  const firstGroup = hub.groups.find((g) => !g.closed);
   const suggestions = [
-    `Is it a good week to apply fertilizer?`,
-    `What should I look for when I scout today?`,
-    ins.crop.legume ? 'Do I need nitrogen fertilizer at all?' : 'Can I use NPK 20-10-10 instead of 15-15-15?',
+    ...(ins ? [`Is it a good week to apply fertilizer?`, `What should I look for when I scout today?`, ins.crop.legume ? 'Do I need nitrogen fertilizer at all?' : 'Can I use NPK 20-10-10 instead of 15-15-15?'] : []),
+    ...(firstGroup ? [SPECIES[firstGroup.species].eggs ? 'My hens are laying fewer eggs. What should I check first?' : `How can I keep my ${SPECIES[firstGroup.species].many} healthy in this weather?`] : []),
     'When should I sell to get a better price?',
   ];
 
@@ -180,7 +215,7 @@ function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: In
     setBusy(true);
     setErr(null);
     try {
-      const raw = await api<unknown>('/api/ask', { method: 'POST', body: JSON.stringify({ question: text, language: lang, context: buildContext(farm, ins), history }), timeoutMs: 60_000 });
+      const raw = await api<unknown>('/api/ask', { method: 'POST', body: JSON.stringify({ question: text, language: lang, context: buildContext(farm, ins, hub), history }), timeoutMs: 60_000 });
       const reply = cleanReply(raw);
       if (!reply) throw new ApiError('bad_reply', 'The advisor returned an empty answer. Please ask again.');
       setTurns((t) => [...t, { role: 'model', text: reply.answer, reply }]);
@@ -195,7 +230,7 @@ function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: In
     <div className="space-y-4">
       {turns.length === 0 && (
         <div className="space-y-3">
-          <p className="text-[15px] text-ink-2">The advisor sees this week's plan, the forecast, your soil and growth stage, and answers from those numbers.</p>
+          <p className="text-[15px] text-ink-2">The advisor sees {ins ? "this week's plan, the forecast, your soil, " : ''}your animals' records and the store, and answers from those numbers.</p>
           <div className="flex flex-wrap gap-2">
             {suggestions.map((s) => (
               <button key={s} type="button" disabled={disabled || busy} onClick={() => send(s)} className="rounded-full border border-line bg-card px-3 py-1.5 text-left text-sm hover:border-leaf disabled:opacity-50">
@@ -209,7 +244,7 @@ function Chat({ farm, ins, lang, disabled, prefill = '' }: { farm: Farm; ins: In
       <div className="space-y-4" aria-live="polite">
         {turns.map((t, i) =>
           t.role === 'user' ? (
-            <div key={i} className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-ink px-4 py-2.5 text-paper">{t.text}</div>
+            <div key={i} className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-forest px-4 py-2.5 text-forest-ink">{t.text}</div>
           ) : (
             t.reply ? <Reply key={i} r={t.reply} /> : <div key={i} className="card max-w-[95%] p-4 text-[15px]">{t.text}</div>
           ),
@@ -354,12 +389,12 @@ function Photo({ farm, ins, lang, disabled, onFollowUp }: { farm: Farm; ins: Ins
           ) : (
             <>
               {res.urgent && <p className="rounded-lg bg-clay-soft px-3 py-2 text-sm font-medium text-clay">This can spread fast. Check the rest of the field today.</p>}
-              <p className="font-display text-xl font-semibold leading-snug">{res.summary}</p>
+              <p className="text-xl font-bold leading-snug">{res.summary}</p>
               <ul className="space-y-2">
                 {res.findings.map((f, i) => (
                   <li key={i} className="rounded-lg border border-line-2 p-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{f.name}</span>
+                      <span className="font-bold">{f.name}</span>
                       <span className={`rounded px-1.5 py-0.5 font-mono text-[10.5px] uppercase ${LIKELY[f.likelihood]}`}>{f.likelihood}</span>
                       <span className="text-xs text-ink-3">{f.type}</span>
                     </div>

@@ -165,7 +165,7 @@ function TranslatedPlan({ farm, saved, open, lang }: { farm: Farm; saved: Saved;
   return (
     <div className="space-y-4 border-t border-line-2 px-4 pb-4 pt-3">
       <div lang={lang} className="space-y-4">
-        <p className="font-display text-lg font-semibold leading-snug">{t.heading}</p>
+        <p className="text-lg font-bold leading-snug">{t.heading}</p>
         {(['now', 'week', 'watch'] as Priority[]).map((p) => {
           const items = open.filter((a) => a.priority === p && byId.has(a.id));
           if (!items.length) return null;
@@ -179,7 +179,7 @@ function TranslatedPlan({ farm, saved, open, lang }: { farm: Farm; saved: Saved;
                     <li key={a.id} className="flex gap-3">
                       <span className={`mt-2 h-2 w-2 shrink-0 rounded-full ${PRIORITY_TONE[p].rail}`} aria-hidden />
                       <div className="min-w-0">
-                        <p className="font-semibold leading-snug">{i.title}</p>
+                        <p className="font-bold leading-snug">{i.title}</p>
                         <p className="text-sm text-ink-2">{i.when}</p>
                         {i.how && <p className="mt-1 text-[15px] leading-relaxed">{i.how}</p>}
                         {kept.has(a.id) && (

@@ -19,6 +19,9 @@ export interface BackupSummary {
   farms: string[];
   records: number;
   pastSeasons: number;
+  /** Animal groups, by name. */
+  animals: string[];
+  stockItems: number;
   exportedAt: string;
 }
 
@@ -51,6 +54,8 @@ export function summarizeBackup(b: Backup): BackupSummary {
     farms: farms.map((f) => String(f?.name ?? 'Unnamed field')),
     records,
     pastSeasons: farms.reduce((s, f) => s + (Array.isArray(f?.history) ? f.history.length : 0), 0),
+    animals: Array.isArray(b.data['na:animals']) ? (b.data['na:animals'] as { name?: unknown }[]).map((g) => String(g?.name ?? 'Animals')) : [],
+    stockItems: Array.isArray(b.data['na:stock']) ? (b.data['na:stock'] as unknown[]).length : 0,
     exportedAt: b.exportedAt,
   };
 }
@@ -71,7 +76,7 @@ export function parseBackup(text: string): { ok: true; backup: Backup; summary: 
   }
   const data: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(j.data as Record<string, unknown>)) if (isUserKey(k)) data[k] = v;
-  if (!Array.isArray(data['na:farms'])) return { ok: false, error: 'This backup has no fields in it.' };
+  if (!Array.isArray(data['na:farms']) && !Array.isArray(data['na:animals'])) return { ok: false, error: 'This backup has no fields or animals in it.' };
   const backup: Backup = { app: BACKUP_APP, version: j.version, exportedAt: String(j.exportedAt ?? ''), data };
   return { ok: true, backup, summary: summarizeBackup(backup) };
 }
@@ -88,3 +93,16 @@ export function restoreBackup(backup: Backup, store: Store) {
 }
 
 export const backupFileName = (now = new Date()) => `nexus-agri-backup-${now.toISOString().slice(0, 10)}.json`;
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "2 fields (Back plot, River plot), 2 animal groups (Layers, Goats), 12 store items, 5 record-book entries" */
+export function describeSummary(s: BackupSummary) {
+  const parts: string[] = [];
+  if (s.farms.length) parts.push(`${plural(s.farms.length, 'field', 'fields')} (${s.farms.join(', ')})`);
+  if (s.animals.length) parts.push(`${plural(s.animals.length, 'animal group', 'animal groups')} (${s.animals.join(', ')})`);
+  if (s.stockItems) parts.push(plural(s.stockItems, 'store item', 'store items'));
+  parts.push(plural(s.records, 'record-book entry', 'record-book entries'));
+  if (s.pastSeasons) parts.push(plural(s.pastSeasons, 'past season', 'past seasons'));
+  return parts.join(', ');
+}

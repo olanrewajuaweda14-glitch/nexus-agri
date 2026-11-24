@@ -54,7 +54,7 @@ export function StoreView({ farm, budget, market }: { farm: Farm; budget: Budget
   if (perishable) {
     return (
       <div className="card space-y-2 p-5">
-        <h1 className="font-display text-2xl font-semibold">Sell or store</h1>
+        <h1 className="text-2xl font-bold">Sell or store</h1>
         <p className="text-[15px] text-ink-2">
           {crop.name} {farm.crop === 'tomato' ? 'spoils within days' : 'roots rot within 2–3 days of lifting'}, so storing to wait for a better price doesn't work the way it does for grain.{' '}
           {farm.crop === 'cassava' ? 'Leave roots in the ground and harvest in batches as you sell, or process into garri, fufu or chips, which keep for months.' : 'Plan staggered transplanting so harvests spread over several weeks, or process into paste or dried tomato.'}
@@ -66,8 +66,8 @@ export function StoreView({ farm, budget, market }: { farm: Farm; budget: Budget
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <div className="eyebrow">{crop.name} · after harvest</div>
-        <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">
+        <div className="eyebrow">{crop.name}, after harvest</div>
+        <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
           {r.decision === 'store' ? (
             <>Storing could earn <span className="num font-medium text-leaf"><CountUp value={r.gain} format={(n) => naira(n, true)} /></span> more</>
           ) : r.decision === 'sell' ? (
@@ -138,7 +138,7 @@ export function StoreView({ farm, budget, market }: { farm: Farm; budget: Budget
             <input type="range" min={1} max={8} value={v.months} onChange={(e) => set({ months: Number(e.target.value) })} className="w-full accent-[var(--color-leaf)]" aria-label="Months in store" />
           </div>
           <Num label="Price now" unit="₦ per tonne" grouped value={v.priceNow} onChange={(n) => set({ priceNow: n })} hint={`${naira(v.priceNow / 10)} per 100 kg bag`} />
-          <Num label="Price you expect then" unit="₦ per tonne" grouped value={v.priceLater} onChange={(n) => set({ priceLater: n })} hint={`${naira(v.priceLater / 10)} per bag · ${v.priceNow > 0 ? Math.round((v.priceLater / v.priceNow - 1) * 100) : 0}% above today`} />
+          <Num label="Price you expect then" unit="₦ per tonne" grouped value={v.priceLater} onChange={(n) => set({ priceLater: n })} hint={`${naira(v.priceLater / 10)} per bag, ${v.priceNow > 0 ? Math.round((v.priceLater / v.priceNow - 1) * 100) : 0}% above today`} />
           <div className="text-sm sm:col-span-2">
             <span className="mb-1 block text-ink-2">How you'll store it</span>
             <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Storage method">

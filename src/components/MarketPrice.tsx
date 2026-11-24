@@ -63,14 +63,14 @@ export function MarketPrice({ state, cropName, onUse, usedPrice }: { state: Stat
     <div className="card space-y-4 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="eyebrow">{s.pricetype} · {s.commodity}</div>
+          <div className="eyebrow">{s.pricetype}, {s.commodity}</div>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="num text-3xl font-medium">{naira(s.latest.perTon / 10)}</span>
             <span className="text-sm text-ink-3">per 100 kg bag</span>
           </div>
           <p className="mt-0.5 text-sm text-ink-2">
-            {s.market}, {s.admin1} · {s.distanceKm < 5 ? 'near you' : `${s.distanceKm} km away`} · {monthLabel(s.latest.month)}
-            {change != null && <span className={change >= 0 ? 'text-leaf' : 'text-clay'}> · {change >= 0 ? '+' : ''}{change}% on a year ago</span>}
+            {s.market}, {s.admin1}, {s.distanceKm < 5 ? 'near you' : `${s.distanceKm} km away`}, {monthLabel(s.latest.month)}
+            {change != null && <span className={change >= 0 ? 'text-leaf' : 'text-clay'}>, {change >= 0 ? '+' : ''}{change}% on a year ago</span>}
           </p>
         </div>
         {onUse && (

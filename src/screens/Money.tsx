@@ -74,8 +74,8 @@ function BudgetView({ farm, b, update, reset, market }: { farm: Farm; b: Stored;
   return (
     <div className="space-y-10">
       <header className="space-y-2">
-        <div className="eyebrow">{crop.name} · {farm.sizeHa} ha</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        <div className="eyebrow">{crop.name}, {farm.sizeHa} ha</div>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           {profitable ? 'Expected profit ' : 'Expected loss '}
           <span className={`num font-medium transition-colors duration-500 ${profitable ? 'text-leaf' : 'text-clay'}`}><CountUp value={Math.abs(e.profit)} format={(n) => naira(n, true)} /></span>
         </h1>

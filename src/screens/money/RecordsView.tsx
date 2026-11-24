@@ -29,8 +29,8 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <div className="eyebrow">{crop.name} · planted {shortDate(farm.plantingDate)} · {farm.sizeHa} ha</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Farm record book</h1>
+        <div className="eyebrow">{crop.name}, planted {shortDate(farm.plantingDate)}, {farm.sizeHa} ha</div>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Farm record book</h1>
         <p className="max-w-xl text-[15px] text-ink-2">
           Write down what you spend, harvest and sell as it happens. You'll know your real profit — and have the record banks, cooperatives and input-credit schemes ask for.
         </p>
@@ -79,9 +79,9 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{r.label}</p>
                   <p className="text-xs text-ink-3">
-                    {shortDate(r.date)} · {KIND_LABEL[r.kind]}
-                    {r.kind === 'expense' && r.category ? ` · ${budget.costs.find((c) => c.id === r.category)?.label ?? 'Other'}` : ''}
-                    {r.kg ? ` · ${r.kg.toLocaleString('en-NG')} kg` : ''}
+                    {shortDate(r.date)}, {KIND_LABEL[r.kind]}
+                    {r.kind === 'expense' && r.category ? `, ${budget.costs.find((c) => c.id === r.category)?.label ?? 'Other'}` : ''}
+                    {r.kg ? `, ${r.kg.toLocaleString('en-NG')} kg` : ''}
                   </p>
                 </div>
                 {r.amount != null && <span className={`num shrink-0 text-sm font-medium ${r.kind === 'expense' ? 'text-clay' : 'text-leaf'}`}>{r.kind === 'expense' ? '−' : '+'}{naira(r.amount)}</span>}
@@ -114,7 +114,7 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
       </p>
       {records.length > 0 && (
         <button type="button" className="text-sm font-medium text-leaf underline-offset-2 hover:underline" onClick={nav.startSeason}>
-          Finished this season? Start the next one →
+          Finished this season? Start the next one
         </button>
       )}
 
@@ -130,7 +130,7 @@ export function RecordsView({ farm, budget }: { farm: Farm; budget: Budget }) {
               return (
                 <li key={h.seasonId} className="card space-y-3 p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-semibold">{name} <span className="font-normal text-ink-3">· planted {shortDate(h.plantingDate)} {h.plantingDate.slice(0, 4)} · {h.sizeHa} ha</span></p>
+                    <p className="font-bold">{name}<span className="font-normal text-ink-3">, planted {shortDate(h.plantingDate)} {h.plantingDate.slice(0, 4)}, {h.sizeHa} ha</span></p>
                     <p className={`num text-sm font-medium ${cash > 0 ? 'text-leaf' : cash < 0 ? 'text-clay' : 'text-ink-3'}`}>{cash > 0 ? '+' : cash < 0 ? '−' : ''}{naira(Math.abs(cash), true)} cash</p>
                   </div>
                   <dl className="grid grid-cols-3 gap-3 text-sm">
@@ -202,7 +202,7 @@ function AddRecord({ budget, onAdd }: { budget: Budget; onAdd: (r: FarmRecord) =
   return (
     <form onSubmit={submit} className="card space-y-4 p-4" aria-label="Add an entry">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-xl font-semibold">Add an entry</h2>
+        <h2 className="text-xl font-bold">Add an entry</h2>
         <Segmented label="Entry type" value={kind} onChange={(k) => { setKind(k); setError(null); }} options={[{ value: 'expense', label: 'Spent' }, { value: 'harvest', label: 'Harvested' }, { value: 'sale', label: 'Sold' }]} />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -269,7 +269,7 @@ function printRecord(farm: Farm, cropName: string, budget: Budget, records: Farm
 <style>body{font:14px/1.45 system-ui,sans-serif;color:#1d1b16;margin:32px}h1{font:600 22px Georgia,serif;margin:0}p{margin:4px 0;color:#55503f}
 table{width:100%;border-collapse:collapse;margin-top:20px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #ddd4c1}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#8a836f}.n{text-align:right;font-variant-numeric:tabular-nums}
 .sum{display:flex;gap:28px;margin-top:16px}.sum div b{display:block;font-size:18px}footer{margin-top:24px;font-size:11px;color:#8a836f}</style></head><body>
-<h1>${esc(farm.name)}</h1><p>${esc(cropName)} · ${farm.sizeHa} ha · planted ${farm.plantingDate}${farm.placeName ? ' · ' + esc(farm.placeName) : ''}</p>
+<h1>${esc(farm.name)}</h1><p>${esc(cropName)}, ${farm.sizeHa} ha, planted ${farm.plantingDate}${farm.placeName ? ', ' + esc(farm.placeName) : ''}</p>
 <div class="sum"><div>Spent<b>${naira(s.spent)}</b></div><div>Harvested<b>${(s.harvestedKg / 1000).toFixed(2)} t</b></div><div>Sales<b>${naira(s.sales)}</b></div><div>Cash so far<b>${naira(s.cashSoFar)}</b></div></div>
 <table><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Details</th><th class="n">kg</th><th class="n">Naira</th></tr></thead><tbody>${rows}</tbody></table>
 <footer>Printed ${new Date().toLocaleDateString('en-GB')} from Nexus Agri.</footer>

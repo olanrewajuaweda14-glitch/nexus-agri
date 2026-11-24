@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Share2 } from 'lucide-react';
+import { PackagePlus, Share2 } from 'lucide-react';
 import type { Farm } from '../../lib/types';
 import type { Insights } from '../../lib/useInsights';
 import { shoppingList, shoppingTotal, type ShoppingItem } from '../../lib/engine/inputs';
@@ -8,6 +8,10 @@ import { relativeDay, shortDate } from '../../lib/dates';
 import { naira } from '../../lib/format';
 import { load, save } from '../../lib/storage';
 import { NumberInput, Section, Stat } from '../../components/ui';
+import { useHub } from '../../lib/hub';
+import { addRecord } from '../../lib/records';
+import { balance, findByKey, newId, qtyText as stockQty, unitText, type StockItem, type UnitId } from '../../lib/stock';
+import { localToday } from '../../lib/dates';
 
 const pricesKey = (farm: Farm) => `na:prices:${farm.id}`;
 
@@ -32,6 +36,7 @@ export function ShoppingView({ farm, ins, onRecord }: { farm: Farm; ins: Insight
     save(pricesKey(farm), next);
   };
   const total = shoppingTotal(items, prices);
+  const [buying, setBuying] = useState<string | null>(null);
   const bags = items.reduce((s, i) => s + (i.bags ?? 0), 0);
 
   const share = () => {
@@ -51,8 +56,8 @@ export function ShoppingView({ farm, ins, onRecord }: { farm: Farm; ins: Insight
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <div className="eyebrow">{crop.name} · {farm.sizeHa} ha · one season</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">What to buy</h1>
+        <div className="eyebrow">{crop.name}, {farm.sizeHa} ha, one season</div>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">What to buy</h1>
         <p className="max-w-xl text-[15px] text-ink-2">
           Worked out from the seed rate and fertilizer schedule for {crop.name.toLowerCase()} and the size of this field. Fertilizer is rounded up to whole 50 kg bags. Add the prices your dealer quotes to see the total.
         </p>
@@ -73,7 +78,7 @@ export function ShoppingView({ farm, ins, onRecord }: { farm: Farm; ins: Insight
               <li key={it.id} className="space-y-3 p-4" style={{ ['--i' as string]: i }}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold">{it.name}</p>
+                    <p className="font-bold">{it.name}</p>
                     <p className="mt-0.5 text-sm text-ink-2">
                       {/^(by|before) \d{4}-/.test(it.when) ? (() => {
                         const [word, date] = it.when.split(' ');
@@ -88,6 +93,16 @@ export function ShoppingView({ farm, ins, onRecord }: { farm: Farm; ins: Insight
                   </div>
                 </div>
                 <p className="text-sm leading-relaxed text-ink-2">{it.note}</p>
+                <InStore it={it} late={late} />
+                {it.buyUnits > 0 && it.id !== 'inoculant' && (
+                  buying === it.id ? (
+                    <BoughtForm it={it} farm={farm} price={prices[it.id] ?? 0} onDone={() => setBuying(null)} />
+                  ) : (
+                    <button type="button" className="inline-flex items-center gap-1.5 text-sm font-bold text-leaf hover:underline" onClick={() => setBuying(it.id)}>
+                      <PackagePlus className="h-4 w-4" aria-hidden /> Bought some? Add it to the store
+                    </button>
+                  )
+                )}
                 {it.buyUnits > 0 && (
                   <div className="flex items-center gap-2">
                     <label className="relative w-40">
@@ -110,12 +125,86 @@ export function ShoppingView({ farm, ins, onRecord }: { farm: Farm; ins: Insight
       </button>
       {onRecord && (
         <button type="button" className="ml-1 text-sm font-medium text-leaf underline-offset-2 hover:underline sm:ml-3" onClick={onRecord}>
-          Bought it? Record what you paid →
+          Bought it? Record what you paid
         </button>
       )}
       <p className="text-xs leading-relaxed text-ink-3">
         Rates are standard Nigerian extension recommendations for an average field. A soil test can cut fertilizer spending — the Field tab takes lab results. Buy sealed bags from registered dealers; fake and adulterated fertilizer is common.
       </p>
     </div>
+  );
+}
+
+/** The store unit that matches a buy-list line: 50 kg bags for fertilizer and lime, the seed unit otherwise. */
+const storeUnit = (it: ShoppingItem): UnitId => (it.bags != null ? 'bag50' : it.unit === 'g' ? 'g' : it.unit === 'bundles' ? 'bundles' : 'kg');
+const needUnits = (it: ShoppingItem) => it.bags ?? it.need;
+
+/** What the store already holds for this line, and what is left to buy. */
+function InStore({ it, late }: { it: ShoppingItem; late: boolean }) {
+  const { stock, moves } = useHub();
+  const item = findByKey(stock, it.id);
+  if (!item) return null;
+  const have = balance(item.id, moves);
+  const unit = storeUnit(it);
+  const short = Math.max(0, needUnits(it) - have);
+  return (
+    <p className="rounded-lg bg-leaf-soft/60 px-3 py-2 text-sm">
+      In your store: <b>{stockQty(have)} {unitText(unit, have)}</b>
+      {!late && (short > 0 ? <>, so buy <b>{stockQty(short)}</b> more.</> : <>, enough for this season.</>)}
+    </p>
+  );
+}
+
+function BoughtForm({ it, farm, price, onDone }: { it: ShoppingItem; farm: Farm; price: number; onDone: () => void }) {
+  const hub = useHub();
+  const unit = storeUnit(it);
+  const [qty, setQty] = useState(0);
+  const [paid, setPaid] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!(qty > 0)) return setError(`How many ${unitText(unit, 2)} did you buy?`);
+    const date = localToday();
+    let item = findByKey(hub.stock, it.id);
+    if (!item) {
+      const created: StockItem = { id: newId('s'), name: it.name, category: it.id === 'seed' ? 'seed' : 'fertilizer', unit, key: it.id, createdAt: new Date().toISOString() };
+      hub.saveItem(created);
+      item = created;
+    }
+    const amount = paid > 0 ? paid : 0;
+    hub.addMove({ itemId: item.id, date, kind: 'in', qty, amount: amount || undefined, note: `For ${farm.name}` });
+    if (amount) addRecord(farm, { date, kind: 'expense', category: it.id === 'seed' ? 'seed' : 'fert', label: `${it.name}: ${stockQty(qty)} ${unitText(unit, qty)}`, amount });
+    onDone();
+  };
+  return (
+    <form onSubmit={save} className="space-y-3 rounded-lg bg-paper p-3 ring-1 ring-line" aria-label={`Bought ${it.name}`}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block text-sm">
+          <span className="mb-1 block font-bold">How many {unitText(unit, 2)}</span>
+          <NumberInput
+            className="field num"
+            value={qty}
+            onChange={(n) => {
+              setQty(n);
+              if (price > 0) setPaid(Math.round(n * (it.bags != null ? price : price * (it.unit === 'g' ? 0.001 : 1))));
+            }}
+            aria-label={`How many ${unitText(unit, 2)}`}
+          />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block font-bold">Paid in total</span>
+          <span className="relative block">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-3">₦</span>
+            <NumberInput className="field num pl-7" grouped value={paid} onChange={setPaid} aria-label="Paid in total" />
+          </span>
+        </label>
+      </div>
+      <p className="text-sm text-ink-3">Goes into the store, and what you paid goes into this field's record book.</p>
+      {error && <p role="alert" className="text-sm text-clay">{error}</p>}
+      <div className="flex gap-2">
+        <button type="submit" className="btn btn-primary px-4 py-2 text-sm">Save</button>
+        <button type="button" className="btn btn-ghost px-4 py-2 text-sm" onClick={onDone}>Cancel</button>
+      </div>
+    </form>
   );
 }
