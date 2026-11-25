@@ -50,11 +50,11 @@ export function Weather({ farm, ins }: { farm: Farm; ins: Insights }) {
             <p className="text-[15px]">
               {spray.next ? (
                 <>
-                  Best next window: <b className="font-semibold">{formatWindow(spray.next, today)}</b>
-                  {spray.windows.length > 1 && <span className="text-ink-2"> · {spray.windows.length - 1} more in the next 3 days</span>}
+                  Best next window: <b className="font-bold">{formatWindow(spray.next, today)}</b>
+                  {spray.windows.length > 1 && <span className="text-ink-2">, {spray.windows.length - 1} more in the next 3 days</span>}
                 </>
               ) : (
-                <>No safe window in the next 3 days{blocker ? <> — mainly <b className="font-semibold">{blocker}</b></> : null}.</>
+                <>No safe window in the next 3 days{blocker ? <> — mainly <b className="font-bold">{blocker}</b></> : null}.</>
               )}
             </p>
             <SprayStrip hours={spray.hours} />
@@ -109,7 +109,7 @@ export function Weather({ farm, ins }: { farm: Farm; ins: Insights }) {
       <div className="flex flex-wrap items-center gap-2 text-xs text-ink-3">
         <SourceTag>Open-Meteo forecast (best-match models)</SourceTag>
         <SourceTag>ERA5 reanalysis</SourceTag>
-        <span>Updated {ago(weather.savedAt)} · grid point {w.lat.toFixed(2)}, {w.lng.toFixed(2)}</span>
+        <span>Updated {ago(weather.savedAt)}, grid point {w.lat.toFixed(2)}, {w.lng.toFixed(2)}</span>
       </div>
     </div>
   );

@@ -67,7 +67,19 @@ async function fetchFresh<T>(kind: Kind, lat: number, lng: number): Promise<T> {
  * Network-first with an offline copy: if fresh data can't be had, the last
  * good copy is returned with `stale: true` so the UI can say how old it is.
  */
-export async function fetchCached<T>(kind: Kind, lat: number, lng: number, force = false): Promise<{ data: T; savedAt: string; stale: boolean; error?: string }> {
+/** Requests already on their way, so two fields at the same place (or two screens) share one download. */
+const inflight = new Map<string, Promise<unknown>>();
+
+export function fetchCached<T>(kind: Kind, lat: number, lng: number, force = false): Promise<{ data: T; savedAt: string; stale: boolean; error?: string }> {
+  const id = `${KEYS.cache(kind, lat, lng)}:${force ? 'force' : ''}`;
+  const pending = inflight.get(id);
+  if (pending) return pending as Promise<{ data: T; savedAt: string; stale: boolean; error?: string }>;
+  const p = fetchCachedOnce<T>(kind, lat, lng, force).finally(() => inflight.delete(id));
+  inflight.set(id, p);
+  return p;
+}
+
+async function fetchCachedOnce<T>(kind: Kind, lat: number, lng: number, force: boolean): Promise<{ data: T; savedAt: string; stale: boolean; error?: string }> {
   const key = KEYS.cache(kind, lat, lng);
   const cached = load<Cached<T> | null>(key, null);
   if (!force && cached && Date.now() - Date.parse(cached.savedAt) < MAX_AGE[kind]) {

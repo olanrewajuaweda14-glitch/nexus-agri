@@ -55,9 +55,9 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
           <div className="min-w-0 pb-1">
             <div className="eyebrow truncate">
               {weekdayLong(today)} {shortDate(today)}
-              {farm.placeName ? ` · ${farm.placeName}` : ''}
+              {farm.placeName ? `, ${farm.placeName}` : ''}
             </div>
-            <h1 className="mt-1 font-display text-[30px] font-semibold leading-[1.05] tracking-tight sm:text-[42px]">
+            <h1 className="mt-1 text-[30px] font-bold leading-[1.05] tracking-tight sm:text-[42px]">
               {stage.status === 'not-planted' ? (
                 <>{crop.name}, planting in {-stage.dap} day{stage.dap === -1 ? '' : 's'}</>
               ) : stage.status === 'mature' ? (
@@ -72,7 +72,7 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
         </div>
         <div className="space-y-4 px-4 pb-4 pt-3">
           <p className="max-w-xl text-[15px] text-ink-2">
-            <strong className="font-semibold text-ink">{stage.name}.</strong> {stage.note}
+            <strong className="font-bold text-ink">{stage.name}.</strong> {stage.note}
             {stage.nextName && stage.daysToNext != null && stage.status === 'growing' && (
               <> {stage.nextName} in about {stage.daysToNext} day{stage.daysToNext === 1 ? '' : 's'}.</>
             )}
@@ -92,8 +92,8 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
           !loading && plan.length > 0 ? (
             <span className="flex items-center gap-3">
               <span className="hidden sm:inline">
-                {count('now') > 0 && <b className="font-semibold text-clay">{count('now')} now</b>}
-                {count('now') > 0 && count('week') > 0 && ' · '}
+                {count('now') > 0 && <b className="font-bold text-clay">{count('now')} now</b>}
+                {count('now') > 0 && count('week') > 0 && ', '}
                 {count('week') > 0 && <span>{count('week')} this week</span>}
               </span>
               {checkable.length > 0 && <ProgressRing done={checkable.length - checkable.filter((a) => !isDone(a)).length} total={checkable.length} />}
@@ -136,13 +136,13 @@ export function Today({ farm, ins, done, toggleDone }: Props) {
       </Section>
 
       {forecast && derived.spray && (
-        <Section title="Next 8 days" id="week" aside={<span>rain mm · chance · high/low</span>}>
+        <Section title="Next 8 days" id="week" aside={<span>rain in mm, chance, high and low</span>}>
           <div className="card p-3">
             <WeekStrip weather={forecast} today={today} spray={derived.spray} />
             <p className="mt-2 border-t border-line-2 px-1 pt-3 text-sm text-ink-2">
               <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-leaf align-middle" aria-hidden />
               {derived.spray.next ? (
-                <>Next spray window <b className="font-semibold text-ink">{formatWindow(derived.spray.next, today)}</b></>
+                <>Next spray window <b className="font-bold text-ink">{formatWindow(derived.spray.next, today)}</b></>
               ) : (
                 <>No safe spray window in the next 72 hours.</>
               )}
@@ -198,7 +198,7 @@ function SeasonWrapUp({ farm, cropName }: { farm: Farm; cropName: string }) {
   return (
     <section className="card space-y-4 border-leaf/40 bg-leaf-soft/40 p-4" aria-labelledby="wrapup-h">
       <div>
-        <h2 id="wrapup-h" className="font-display text-xl font-semibold">{cropName} season: wrapping up</h2>
+        <h2 id="wrapup-h" className="text-xl font-bold">{cropName} season: wrapping up</h2>
         <p className="mt-1 text-[15px] text-ink-2">
           Record your harvest and sales, then start the next season. This season's totals are kept as your farm's track record.
         </p>

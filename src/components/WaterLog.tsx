@@ -51,7 +51,7 @@ export function WaterLog({ entries, onChange, today, sizeHa }: { entries: WaterL
     <div className="space-y-4" id="water-log">
       <form onSubmit={add} className="space-y-3 rounded-xl bg-paper p-3" aria-label="Log rain or irrigation">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-semibold">What happened at your field?</h3>
+          <h3 className="font-bold">What happened at your field?</h3>
           <Segmented label="Log type" value={kind} onChange={(k) => { setKind(k); setError(null); }} options={[{ value: 'rain', label: 'Rain' }, { value: 'irrigation', label: 'Irrigation' }]} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -96,7 +96,7 @@ export function WaterLog({ entries, onChange, today, sizeHa }: { entries: WaterL
               {e.kind === 'rain' ? <CloudRain className="h-4 w-4 shrink-0 text-rain" aria-hidden /> : <Droplets className="h-4 w-4 shrink-0 text-leaf" aria-hidden />}
               <span className="flex-1">
                 {e.kind === 'rain' ? `Rain: ${e.mm} mm (your gauge)` : e.full ? 'Irrigated fully' : `Irrigated ${e.mm} mm`}
-                <span className="text-ink-3"> · {relativeDay(e.date, today)}</span>
+                <span className="text-ink-3">, {relativeDay(e.date, today)}</span>
               </span>
               <button type="button" aria-label="Delete this entry" className="rounded-full p-1.5 text-ink-3 hover:bg-paper hover:text-clay" onClick={() => onChange(entries.filter((x) => x.id !== e.id))}>
                 <Trash2 className="h-4 w-4" />

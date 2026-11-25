@@ -1,6 +1,6 @@
 // Nexus Agri service worker: keeps the app shell available offline.
 // Data offline is handled by the app itself (last good copy in localStorage).
-const CACHE = 'nexus-agri-v3';
+const CACHE = 'nexus-agri-v4';
 const SHELL = ['/', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', (e) => {

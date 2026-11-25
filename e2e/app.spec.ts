@@ -116,6 +116,7 @@ test.describe('tabs', () => {
     await mockApi(page);
     await startSample(page);
     await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Budget' }).click();
     await expect(page.getByText(/example figures/)).toBeVisible();
     const price = page.getByRole('textbox').nth(1);
     await price.fill('300000');
@@ -155,7 +156,7 @@ test.describe('tabs', () => {
     expect(sent.context.stage.dap).toBe(38);
     expect(sent.context.plan.length).toBeGreaterThan(0);
 
-    await page.getByRole('radio', { name: 'Check a photo' }).click();
+    await page.getByRole('radio', { name: 'Check a crop photo' }).click();
     // A real JPEG so the in-browser resize path runs.
     const jpeg = await page.evaluate(async () => {
       const c = document.createElement('canvas');
@@ -186,7 +187,7 @@ test.describe('farms', () => {
     const map = page.locator('.leaflet-container');
     await map.waitFor();
     await map.click({ position: { x: 150, y: 120 } });
-    await expect(page.getByText(/Ibadan, Oyo State ·/)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/Ibadan, Oyo State, /)).toBeVisible({ timeout: 5000 });
 
     await page.getByRole('radio', { name: /Cowpea/ }).click();
     await page.locator('input[type=date]').fill('2062-01-01');
@@ -237,6 +238,7 @@ test.describe('deployment modes', () => {
     await nav(page, 'Ask');
     await expect(page.getByText('The AI advisor needs the Nexus Agri server.')).toBeVisible();
     await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Budget' }).click();
     await expect(page.getByText(/Market prices aren't available right now/)).toBeVisible();
   });
 });
@@ -248,7 +250,7 @@ test.describe('quality', () => {
       const page = await ctx.newPage();
       await mockApi(page);
       await startSample(page);
-      for (const tab of ['Plan', 'Weather', 'Field', 'Money', 'Ask']) {
+      for (const tab of ['Home', 'Tasks', 'Plan', 'Weather', 'Field', 'Animals', 'Health', 'Store', 'Money', 'Ask', 'Alerts']) {
         await nav(page, tab);
         await page.waitForTimeout(reducedMotion === 'reduce' ? 100 : 2200);
         const hidden = await page.evaluate(() =>
@@ -267,14 +269,14 @@ test.describe('quality', () => {
     const page = await ctx.newPage();
     await mockApi(page);
     await startSample(page);
-    for (const tab of ['Plan', 'Weather', 'Field', 'Money', 'Ask']) {
+    for (const tab of ['Home', 'Tasks', 'Plan', 'Weather', 'Field', 'Animals', 'Health', 'Store', 'Money', 'Ask', 'Alerts']) {
       await nav(page, tab);
       await page.waitForTimeout(300);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, `${tab} tab overflows by ${overflow}px`).toBeLessThanOrEqual(0);
     }
     await nav(page, 'Money');
-    for (const view of ['Buy list', 'Records', 'Sell or store']) {
+    for (const view of ['Whole farm', 'Budget', 'Buy list', 'Records', 'Sell or store']) {
       await page.getByRole('radio', { name: view }).click();
       await page.waitForTimeout(300);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -379,7 +381,7 @@ test.describe('farmer tools', () => {
   test('measure a field by tapping corners; a crossed boundary is refused', async ({ page }) => {
     await mockApi(page);
     await page.goto('/');
-    await page.getByRole('button', { name: 'Set up my farm' }).click();
+    await page.getByRole('button', { name: 'Add a field' }).click();
     const map = page.locator('.leaflet-container');
     await map.waitFor();
     await map.click({ position: { x: 160, y: 140 } });
@@ -424,8 +426,9 @@ test.describe('farmer tools', () => {
     await mockApi(page);
     await startSample(page);
     await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Budget' }).click();
     await expect(page.getByText('₦62,000')).toBeVisible();
-    await expect(page.getByText(/Bodija, Oyo · near you/)).toBeVisible();
+    await expect(page.getByText(/Bodija, Oyo, near you/)).toBeVisible();
     await expect(page.getByText(/usually cheapest in/)).toBeVisible();
     await page.getByRole('button', { name: 'Use ₦620k/t' }).click();
     await expect(page.getByRole('button', { name: 'Using this price' })).toBeDisabled();
@@ -449,7 +452,7 @@ test.describe('farmer tools', () => {
 });
 
 test.describe('opening the app', () => {
-  test('a fresh open starts on the welcome page and Continue goes to the Plan tab', async ({ context }) => {
+  test('a fresh open starts on Home; a reload keeps your place', async ({ context }) => {
     const first = await context.newPage();
     await mockApi(first);
     await startSample(first);
@@ -461,21 +464,29 @@ test.describe('opening the app', () => {
     await expect(first.getByRole('radio', { name: 'Budget' })).toBeVisible();
     await first.close();
 
-    // Opening the app again (new tab) starts on the welcome page, even with #money in the address.
+    // Opening the app again (new tab) starts on Home, even with #money in the address.
     const again = await context.newPage();
     await mockApi(again);
     await again.goto('/#money');
-    await expect(again.getByRole('heading', { level: 1 })).toContainText('What your farm');
+    await expect(again.getByRole('heading', { level: 1 })).toHaveText(/^Good (morning|afternoon|evening)/);
     await expect(again).not.toHaveURL(/#money/);
-    await again.getByRole('button', { name: /Sample: maize near Ibadan/ }).click();
-    await expect(again.getByRole('heading', { name: "This week's plan" })).toBeVisible();
+    await expect(again.getByRole('list', { name: 'Fields' })).toContainText('Sample: maize near Ibadan');
 
-    // The logo goes back to the welcome page; Add a field → Cancel returns there too.
-    await again.getByRole('button', { name: 'Nexus Agri — home page' }).filter({ visible: true }).click();
-    await expect(again.getByText('Your fields')).toBeVisible();
-    await again.getByRole('button', { name: 'Add a field' }).click();
-    await again.getByRole('button', { name: 'Cancel' }).click();
-    await expect(again.getByText('Your fields')).toBeVisible();
+    // A field on Home opens its plan; the logo comes back to Home.
+    await again.getByRole('list', { name: 'Fields' }).getByRole('button', { name: /Sample: maize near Ibadan/ }).click();
+    await expect(again.getByRole('heading', { name: "This week's plan" })).toBeVisible();
+    await nav(again, 'Home');
+    await expect(again.getByRole('heading', { name: "This week's work" })).toBeVisible();
+  });
+
+  test('a new phone with nothing on it gets the welcome page', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('What your farm');
+    await page.getByRole('button', { name: 'Add a field' }).click();
+    await expect(page.getByRole('heading', { name: 'Add a field' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('What your farm');
   });
 });
 
@@ -494,7 +505,7 @@ test.describe('connected flow', () => {
 
     await page.getByRole('button', { name: /^Scout for fall armyworm/ }).click();
     await page.getByRole('button', { name: 'Check a photo of what you find' }).click();
-    await expect(page.getByRole('radio', { name: 'Check a photo' })).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByRole('radio', { name: 'Check a crop photo' })).toHaveAttribute('aria-checked', 'true');
   });
 
   test('spray job opens the mix calculator in view', async ({ page }) => {
@@ -505,7 +516,7 @@ test.describe('connected flow', () => {
       localStorage.setItem('na:active', JSON.stringify('cp'));
       sessionStorage.setItem('na:session', '1');
     }, planted);
-    await page.goto('/');
+    await page.goto('/#plan');
     await page.getByRole('button', { name: /^Insecticide spray at flower-bud stage/ }).click();
     await page.getByRole('button', { name: 'Mix calculator' }).click();
     await expect(page.getByRole('heading', { name: 'Mixing the spray' })).toBeInViewport({ timeout: 3000 });
@@ -546,7 +557,7 @@ test.describe('connected flow', () => {
     await page.route('**/api/ask', (r) => r.fulfill({ json: { answer: 'Top-dress with urea this week.', steps: ['130 kg/ha'], basedOn: ['day 38'], confidence: 'high', missing: '' } }));
     await startSample(page);
     await nav(page, 'Ask');
-    await page.getByRole('radio', { name: 'Check a photo' }).click();
+    await page.getByRole('radio', { name: 'Check a crop photo' }).click();
     const jpeg = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 300; c.getContext('2d')!.fillRect(0, 0, 400, 300); return c.toDataURL('image/jpeg').split(',')[1]; });
     await page.locator('input[type=file]').setInputFiles({ name: 'leaf.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(jpeg, 'base64') });
     await page.getByRole('button', { name: 'Check this maize photo' }).click();

@@ -104,10 +104,44 @@ export async function mockApi(target: Page | BrowserContext, opts: MockOptions =
   await target.route('**/api/health', (r) => r.fulfill({ json: { ok: true, ai: !!opts.ai, model: opts.ai ? 'test-model' : null } }));
 }
 
-export async function startSample(page: Page) {
+/** Opens the sample farm. It lands on Home; most tests start from the crop plan, so that is the default. */
+export async function startSample(page: Page, land: 'Plan' | 'Home' = 'Plan') {
   await page.goto('/');
   await page.getByRole('button', { name: 'Try a sample farm' }).click();
-  await page.getByRole('heading', { name: "This week's plan" }).waitFor();
+  await page.getByRole('heading', { level: 1, name: /^Good (morning|afternoon|evening)/ }).waitFor();
+  if (land === 'Plan') {
+    await nav(page, 'Plan');
+    await page.getByRole('heading', { name: "This week's plan" }).waitFor();
+  }
 }
 
-export const nav = (page: Page, name: string) => page.locator('nav[aria-label=Main]:visible').getByRole('button', { name, exact: true }).click();
+const CROP_TABS: Record<string, string> = { Plan: 'Plan', Weather: 'Weather', Field: 'Soil and water' };
+
+/**
+ * Goes to a screen the way a person would: the sidebar on a computer; the
+ * bottom bar, or the menu for the rest, on a phone; the crop tabs for Plan,
+ * Weather and Soil and water.
+ */
+export async function nav(page: Page, name: string) {
+  const crop = CROP_TABS[name];
+  const tabs = page.getByRole('tablist', { name: 'Crop screens' });
+  if (crop && (await tabs.isVisible())) {
+    await tabs.getByRole('tab', { name: crop }).click();
+    return;
+  }
+  const target = crop ? 'Crops' : name === 'Ask' ? 'Ask the advisor' : name;
+  const main = page.locator('nav[aria-label=Main]:visible');
+  const direct = main.getByRole('button', { name: new RegExp(`^${target}`) });
+  if (await direct.count()) await direct.first().click();
+  else {
+    await page.getByRole('button', { name: 'Open menu' }).filter({ visible: true }).click();
+    await page.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: new RegExp(`^${target}`) }).click();
+  }
+  if (crop && crop !== 'Plan') await page.getByRole('tablist', { name: 'Crop screens' }).getByRole('tab', { name: crop }).click();
+}
+
+/** Opens the Record sheet: the gold button in the phone bar or at the top of the sidebar. */
+export async function openRecord(page: Page) {
+  await page.getByRole('button', { name: /^Record$/ }).filter({ visible: true }).first().click();
+  await page.getByRole('dialog', { name: 'Record' }).waitFor();
+}

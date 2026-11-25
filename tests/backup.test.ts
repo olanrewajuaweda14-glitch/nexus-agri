@@ -61,3 +61,13 @@ describe('backup and restore', () => {
     expect(parsed.ok && Object.keys(parsed.backup.data)).toEqual(['na:farms']);
   });
 });
+
+describe('backup summary', () => {
+  it('says what is in the file, including animals and the store', async () => {
+    const { describeSummary } = await import('../src/lib/backup');
+    expect(describeSummary({ farms: ['Back plot'], animals: ['Layers', 'Goats'], stockItems: 4, records: 1, pastSeasons: 0, exportedAt: '' }))
+      .toBe('1 field (Back plot), 2 animal groups (Layers, Goats), 4 store items, 1 record-book entry');
+    expect(describeSummary({ farms: [], animals: ['Goats'], stockItems: 0, records: 0, pastSeasons: 2, exportedAt: '' }))
+      .toBe('1 animal group (Goats), 0 record-book entries, 2 past seasons');
+  });
+});

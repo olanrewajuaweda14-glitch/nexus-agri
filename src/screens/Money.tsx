@@ -12,6 +12,8 @@ import { RecordsView } from './money/RecordsView';
 import { StoreView } from './money/StoreView';
 import { MarketPrice, useMarketPrice } from '../components/MarketPrice';
 import { CountUp } from '../components/motion';
+import { FarmMoneyView } from './money/FarmMoneyView';
+import { NoFields } from '../components/NoFields';
 
 interface Stored extends Budget {
   edited: boolean;
@@ -19,13 +21,65 @@ interface Stored extends Budget {
 
 const fresh = (farm: Farm): Stored => ({ ...structuredClone(CROPS[farm.crop].exampleBudget), edited: false });
 
-type View = 'budget' | 'shop' | 'records' | 'store';
+type View = 'farm' | 'budget' | 'shop' | 'records' | 'store';
 
-export function Money({ farm, ins, initialView }: { farm: Farm; ins: Insights; initialView?: View }) {
+/**
+ * Money opens on the whole farm. The field tools (budget, buy list, record
+ * book, sell or store) work on one field at a time, chosen just below.
+ */
+export function Money({ farm, ins, farms, onSwitchField, onAddField, initialView }: {
+  farm: Farm | null;
+  ins: Insights | null;
+  farms: Farm[];
+  onSwitchField: (id: string) => void;
+  onAddField: () => void;
+  initialView?: View;
+}) {
+  const [view, setView] = useState<View>(initialView ?? 'farm');
+  return (
+    <div className="space-y-7">
+      <div>
+        <Segmented
+          wrap
+          label="Money tools"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: 'farm', label: 'Whole farm' },
+            { value: 'budget', label: 'Budget' },
+            { value: 'shop', label: 'Buy list' },
+            { value: 'records', label: 'Records' },
+            { value: 'store', label: 'Sell or store' },
+          ]}
+        />
+      </div>
+      {view === 'farm' ? (
+        <div className="[animation:rise_380ms_var(--ease-out)_both]">
+          <FarmMoneyView farms={farms} />
+        </div>
+      ) : !farm || !ins ? (
+        <NoFields onAdd={onAddField} money />
+      ) : (
+        <>
+          {farms.length > 1 && (
+            <label className="flex flex-wrap items-center gap-2 text-ink-2">
+              For the field
+              <select className="field w-auto py-1.5 font-bold text-ink" value={farm.id} onChange={(e) => onSwitchField(e.target.value)}>
+                {farms.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </label>
+          )}
+          <FieldMoney key={`${farm.id}:${view}`} farm={farm} ins={ins} view={view} setView={setView} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function FieldMoney({ farm, ins, view, setView }: { farm: Farm; ins: Insights; view: Exclude<View, 'farm'>; setView: (v: View) => void }) {
   const storageKey = KEYS.budget(`${farm.id}:${farm.crop}`);
   const [b, setB] = useState<Stored>(() => load(storageKey, fresh(farm)));
   useEffect(() => { setB(load(storageKey, fresh(farm))); }, [storageKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [view, setView] = useState<View>(initialView ?? 'budget');
   const market = useMarketPrice(farm.crop, farm.lat, farm.lng);
   const update = (patch: Partial<Stored>) => {
     const next = { ...b, ...patch, edited: true };
@@ -37,28 +91,12 @@ export function Money({ farm, ins, initialView }: { farm: Farm; ins: Insights; i
     setB(f);
     save(storageKey, f);
   };
-
   return (
-    <div className="space-y-7">
-      <div className="-mx-1 overflow-x-auto px-1 pb-1">
-        <Segmented
-          label="Money tools"
-          value={view}
-          onChange={setView}
-          options={[
-            { value: 'budget', label: 'Budget' },
-            { value: 'shop', label: 'Buy list' },
-            { value: 'records', label: 'Records' },
-            { value: 'store', label: 'Sell or store' },
-          ]}
-        />
-      </div>
-      <div key={view} className="[animation:rise_380ms_var(--ease-out)_both]">
-        {view === 'budget' && <BudgetView farm={farm} b={b} update={update} reset={reset} market={market} />}
-        {view === 'shop' && <ShoppingView farm={farm} ins={ins} onRecord={() => setView('records')} />}
-        {view === 'records' && <RecordsView farm={farm} budget={b} />}
-        {view === 'store' && <StoreView farm={farm} budget={b} market={market} />}
-      </div>
+    <div className="[animation:rise_380ms_var(--ease-out)_both]">
+      {view === 'budget' && <BudgetView farm={farm} b={b} update={update} reset={reset} market={market} />}
+      {view === 'shop' && <ShoppingView farm={farm} ins={ins} onRecord={() => setView('records')} />}
+      {view === 'records' && <RecordsView farm={farm} budget={b} />}
+      {view === 'store' && <StoreView farm={farm} budget={b} market={market} />}
     </div>
   );
 }
@@ -74,8 +112,8 @@ function BudgetView({ farm, b, update, reset, market }: { farm: Farm; b: Stored;
   return (
     <div className="space-y-10">
       <header className="space-y-2">
-        <div className="eyebrow">{crop.name} · {farm.sizeHa} ha</div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        <div className="eyebrow">{crop.name}, {farm.sizeHa} ha</div>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           {profitable ? 'Expected profit ' : 'Expected loss '}
           <span className={`num font-medium transition-colors duration-500 ${profitable ? 'text-leaf' : 'text-clay'}`}><CountUp value={Math.abs(e.profit)} format={(n) => naira(n, true)} /></span>
         </h1>

@@ -161,7 +161,7 @@ export function FarmForm({ initial, mode = initial ? 'edit' : 'new', onSave, onC
           <span className="text-sm text-ink-2">
             {pt ? (
               <>
-                {placeName && <b className="font-medium text-ink">{placeName} · </b>}
+                {placeName && <b className="font-medium text-ink">{placeName}, </b>}
                 <span className="num">{pt.lat.toFixed(4)}, {pt.lng.toFixed(4)}</span>
               </>
             ) : (
@@ -199,7 +199,7 @@ export function FarmForm({ initial, mode = initial ? 'edit' : 'new', onSave, onC
               <div className="rounded-lg bg-card px-2 py-1.5"><div className="num text-lg font-medium">{(areaM2 / AREA_UNITS.acre).toFixed(2)}</div><div className="text-[11px] text-ink-3">acres</div></div>
               <div className="rounded-lg bg-card px-2 py-1.5"><div className="num text-lg font-medium">{Math.round(areaM2 / AREA_UNITS.plot)}</div><div className="text-[11px] text-ink-3">plots (50×100 ft)</div></div>
             </div>
-            <p className="text-xs text-ink-2">{boundary.length} corner{boundary.length === 1 ? '' : 's'} · boundary {Math.round(perimeter(boundary))} m</p>
+            <p className="text-xs text-ink-2">{boundary.length} corner{boundary.length === 1 ? '' : 's'}, boundary {Math.round(perimeter(boundary))} m</p>
             {crossed && <p role="alert" className="text-sm text-clay">The boundary crosses itself. Undo and tap the corners in order around the field.</p>}
             {!crossed && areaM2 > 20 * AREA_UNITS.ha && <p className="text-sm text-sun">That's over 20 ha — larger than most single fields. Zoom in and check the corners are on this field's edges.</p>}
             <div className="flex flex-wrap gap-2">
@@ -231,7 +231,7 @@ export function FarmForm({ initial, mode = initial ? 'edit' : 'new', onSave, onC
               onClick={() => setCrop(c.id)}
               className={`rounded-xl border px-3 py-3 text-left transition-colors ${crop === c.id ? 'border-leaf bg-leaf-soft' : 'border-line bg-card hover:border-ink-3'}`}
             >
-              <div className="font-semibold">{c.name}</div>
+              <div className="font-bold">{c.name}</div>
               <div className="text-xs text-ink-3">{c.maturityDays} days</div>
             </button>
           ))}
@@ -292,7 +292,7 @@ function Field({ n, label, children }: { n: number; label: string; children: Rea
     <fieldset className="space-y-3">
       <legend className="mb-3 flex items-center gap-2.5">
         <span className="num flex h-6 w-6 items-center justify-center rounded-full bg-ink text-xs text-paper">{n}</span>
-        <span className="font-display text-xl font-semibold">{label}</span>
+        <span className="text-xl font-bold">{label}</span>
       </legend>
       {children}
     </fieldset>

@@ -188,10 +188,13 @@ test.describe('backup', () => {
     await expect(phone.getByRole('alert')).toHaveText("This file isn't a Nexus Agri backup.");
 
     await phone.getByLabel('Backup file', { exact: true }).setInputFiles(path);
-    await expect(phone.getByText(/1 field \(Sample: maize near Ibadan\), 1 record-book entry/)).toBeVisible();
+    await expect(phone.getByText(/1 field \(Sample: maize near Ibadan\), 2 animal groups \(Sample layers, Sample goats\), 4 store items, 1 record-book entry/)).toBeVisible();
     phone.once('dialog', (d) => d.accept());
     await phone.getByRole('button', { name: "Replace this phone's data with this backup" }).click();
 
+    // A restore lands on Home, with the fields and animals from the backup.
+    await expect(phone.getByRole('list', { name: 'Fields' })).toContainText('Sample: maize near Ibadan');
+    await nav(phone, 'Plan');
     await expect(phone.getByRole('heading', { level: 1 })).toContainText('Maize, day');
     await expect(phone.getByRole('button', { name: 'Mark "Top-dress with urea" as not done' })).toBeVisible();
     await nav(phone, 'Money');

@@ -94,7 +94,7 @@ export function ActionCard({ action, done, onToggle, defaultOpen = false, farm, 
           <Icon className="h-[18px] w-[18px]" aria-hidden />
         </div>
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          <h3 className="relative w-fit font-semibold leading-snug">
+          <h3 className="relative w-fit font-bold leading-snug">
             {action.title}
             <span
               className="absolute left-0 top-1/2 h-[1.5px] w-full origin-left bg-ink-3 transition-transform duration-500"

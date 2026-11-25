@@ -18,7 +18,7 @@ export function DryCheck() {
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sun-soft text-sun"><Sun className="h-[18px] w-[18px]" aria-hidden /></span>
         <div>
-          <h3 className="font-semibold">Is it dry enough to store?</h3>
+          <h3 className="font-bold">Is it dry enough to store?</h3>
           <p className="text-sm text-ink-2">Grain stored damp goes mouldy and can carry aflatoxin, a poison that also gets loads rejected by buyers. Aim for below 13% moisture. No meter? Do the salt test.</p>
         </div>
       </div>

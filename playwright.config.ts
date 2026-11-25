@@ -18,6 +18,9 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3123',
     trace: 'off',
+    // The mocked forecast is for Lagos (UTC+1), and so are the phones that use the app.
+    // On UTC the browser's date lags Lagos by a day from 23:00 to midnight.
+    timezoneId: 'Africa/Lagos',
   },
   projects: [
     { name: 'phone', use: { ...devices['Pixel 7'] } },

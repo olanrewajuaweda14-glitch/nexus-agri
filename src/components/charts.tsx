@@ -222,7 +222,7 @@ export function MonthlyRain({ normals, month }: { normals: number[]; month: numb
         <div key={m} className="flex h-full flex-1 flex-col items-center justify-end">
           <span className={`num mb-1 text-[10px] ${m === month ? 'text-ink' : 'text-ink-3'}`}>{v}</span>
           <div className="grow-y w-full rounded-t-sm" style={{ height: `${(v / max) * 75}%`, minHeight: 2, background: m === month ? 'var(--color-rain)' : 'var(--color-rain-soft)', ['--i' as string]: m }} />
-          <span className={`mt-1 text-[10px] ${m === month ? 'font-semibold text-ink' : 'text-ink-3'}`}>{monthName(m)[0]}</span>
+          <span className={`mt-1 text-[10px] ${m === month ? 'font-bold text-ink' : 'text-ink-3'}`}>{monthName(m)[0]}</span>
         </div>
       ))}
     </div>
@@ -252,7 +252,7 @@ export function ForecastRows({ weather, today, label }: { weather: WeatherBundle
     <ol className="card stagger divide-y divide-line-2">
       {rows.map((r) => (
         <li key={r.date} className="grid grid-cols-[3.25rem_1fr_1.15fr] items-center gap-3 px-3 py-2.5 sm:grid-cols-[4rem_8rem_1fr_1.3fr] sm:px-4" style={{ ['--i' as string]: r.k }}>
-          <div className={`text-sm ${r.k === 0 ? 'font-semibold' : 'font-medium'}`}>{r.k === 0 ? 'Today' : weekday(r.date)}</div>
+          <div className={`text-sm ${r.k === 0 ? 'font-bold' : 'font-medium'}`}>{r.k === 0 ? 'Today' : weekday(r.date)}</div>
           <div className="hidden truncate text-sm text-ink-2 sm:block">{label(r.code)}</div>
           <div className="flex min-w-0 items-center gap-2" aria-label={`${r.rain.toFixed(1)} mm rain, ${r.prob}% chance`}>
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-rain-soft/60">

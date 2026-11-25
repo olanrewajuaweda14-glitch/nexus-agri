@@ -73,8 +73,8 @@ export function FarmSky({ weather, spray, today, nowIso, standalone = false }: {
   const nowSpray = spray.hours[0];
   const verdict = !isDay
     ? spray.next
-      ? { tone: 'muted', next: undefined as string | undefined, text: `Dark now · next spray window ${lower(formatWindow(spray.next, today))}` }
-      : { tone: 'muted', next: undefined as string | undefined, text: 'Dark now · no safe spray window in the next 3 days' }
+      ? { tone: 'muted', next: undefined as string | undefined, text: `Dark now. Next spray window ${lower(formatWindow(spray.next, today))}` }
+      : { tone: 'muted', next: undefined as string | undefined, text: 'Dark now. No safe spray window in the next 3 days' }
     : nowSpray?.status === 'good'
       ? { tone: 'good', text: 'Good hour to spray', next: spray.windows[0] ? `Window runs ${lower(formatWindow(spray.windows[0], today)).replace(/^today /, '')}` : undefined }
       : nowSpray?.status === 'fair'
