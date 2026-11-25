@@ -3,16 +3,18 @@ import type { Farm } from '../lib/types';
 import type { Insights } from '../lib/useInsights';
 import type { AgendaItem, Alert } from '../lib/agenda';
 import { formatWindow } from '../lib/engine/plan';
-import { ageOn, ageText, eggStats, headCount, money, SPECIES, type AnimalGroup, type AnimalEvent } from '../lib/livestock';
+import { ageOn, ageText, eggStats, headCount, SPECIES, type AnimalGroup, type AnimalEvent } from '../lib/livestock';
 import { balance, isLow } from '../lib/stock';
-import { loadRecords, summarize } from '../lib/records';
+import { allRecords } from '../lib/records';
+import { farmMoney, periodStart } from '../lib/ledger';
 import { CROPS } from '../lib/crops';
-import { KEYS, load } from '../lib/storage';
 import { localToday, weekdayLong } from '../lib/dates';
 import { naira } from '../lib/format';
 import { isSample, useHub } from '../lib/hub';
 import { useNav } from '../lib/nav';
 import { AgendaList } from '../components/Agenda';
+import { WeekCard } from '../components/WeekCard';
+import { ListenButton } from '../components/ListenButton';
 import { AlertRow } from './Alerts';
 import { CropGlyph } from '../components/CropGlyph';
 import { SpeciesIcon } from '../components/SpeciesIcon';
@@ -53,6 +55,9 @@ export function Home({ farms, insights, agenda, alerts, done, toggleDone, onClea
           {weekdayLong(today)} {Number(today.slice(8, 10))} {MONTHS[Number(today.slice(5, 7)) - 1]}{place ? `, ${place}` : ''}
         </p>
         {main && <WeatherLine ins={main} fieldName={farms.length > 1 ? farms[0].name : null} />}
+        <div className="mt-3">
+          <ListenButton compact label="Listen to today" text={spokenDay({ firstName, main, now, pressing })} />
+        </div>
       </header>
 
       {pressing.length > 0 && (
@@ -99,7 +104,7 @@ export function Home({ farms, insights, agenda, alerts, done, toggleDone, onClea
           <FieldRows farms={farms} insights={insights} />
           <AnimalRows groups={hub.groups} events={hub.events} today={today} />
           <StoreRow />
-          <MoneyRow farms={farms} groups={hub.groups} events={hub.events} />
+          <MoneyRow farms={farms} />
         </div>
         <div className="flex flex-wrap gap-2 pt-1">
           <button type="button" className="btn btn-ghost press" onClick={nav.addField}>
@@ -110,6 +115,8 @@ export function Home({ farms, insights, agenda, alerts, done, toggleDone, onClea
           </button>
         </div>
       </section>
+
+      <WeekCard farms={farms} insights={insights} />
 
       <button type="button" onClick={() => nav.go('ask')} className="flex w-full items-center gap-4 rounded-xl bg-forest p-4 text-left text-forest-ink press">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-maize text-forest">
@@ -261,34 +268,41 @@ function StoreRow() {
   );
 }
 
-/** This season's money across the fields, and all the animals' money so far. */
-function MoneyRow({ farms, groups, events }: { farms: Farm[]; groups: AnimalGroup[]; events: Record<string, AnimalEvent[]> }) {
+/** This year's money for the whole farm: the same sums as the Money screen opens on. */
+function MoneyRow({ farms }: { farms: Farm[] }) {
   const nav = useNav();
-  let spent = 0;
-  let sales = 0;
-  for (const f of farms) {
-    const s = summarize(loadRecords(f), load(KEYS.budget(`${f.id}:${f.crop}`), CROPS[f.crop].exampleBudget), f.sizeHa);
-    spent += s.spent;
-    sales += s.sales;
-  }
-  for (const g of groups) {
-    const m = money(events[g.id] ?? []);
-    spent += m.spent;
-    sales += m.received;
-  }
-  if (!farms.length && !groups.length) return null;
-  const net = sales - spent;
+  const hub = useHub();
+  const today = localToday();
+  if (!farms.length && !hub.groups.length) return null;
+  const m = farmMoney({ farms, recordsOf: allRecords, groups: hub.groups, events: hub.events, ledger: hub.ledger, stock: hub.stock, moves: hub.moves, from: periodStart('year', today), to: today });
   return (
     <ul>
       <Row
-        onClick={() => (farms.length ? nav.go('money', { money: 'records' }) : nav.go('animals'))}
+        onClick={() => nav.go('money')}
         icon={<span className="text-lg font-bold">₦</span>}
-        title="Money"
-        sub={spent || sales ? `Spent ${naira(spent, true)}, received ${naira(sales, true)}` : 'Nothing recorded yet this season'}
-        aside={spent || sales ? `${net >= 0 ? '+' : '−'}${naira(Math.abs(net), true)}` : undefined}
-        tone={net < 0 ? 'clay' : undefined}
+        title="Money this year"
+        sub={m.in || m.out ? `In ${naira(m.in, true)}, out ${naira(m.out, true)}` : 'Nothing recorded yet this year'}
+        aside={m.in || m.out ? `${m.net >= 0 ? '+' : '−'}${naira(Math.abs(m.net), true)}` : undefined}
+        tone={m.net < 0 ? 'clay' : undefined}
       />
     </ul>
   );
 }
 
+
+/** Today in plain sentences for the phone's voice: no symbols, units spelled out. */
+function spokenDay({ firstName, main, now, pressing }: { firstName?: string; main: Insights | null; now: AgendaItem[]; pressing: Alert[] }) {
+  const parts = [`${greeting(new Date().getHours())}${firstName ? `, ${firstName}` : ''}.`];
+  const w = main?.forecast;
+  const i = w ? w.daily.time.indexOf(main!.today) : -1;
+  if (w && i >= 0) {
+    const hi = w.daily.tMax[i];
+    const prob = w.daily.precipProb[i] ?? 0;
+    parts.push(`Today, up to ${hi != null ? Math.round(hi) : 'unknown'} degrees, with a ${prob} percent chance of rain.`);
+  }
+  const jobs = now.filter((a) => a.when === 'overdue' || a.when === 'today');
+  if (jobs.length) parts.push(`${jobs.length === 1 ? 'One job' : `${jobs.length} jobs`} for today: ${jobs.slice(0, 4).map((a) => `${a.title}${a.where ? `, ${a.where}` : ''}`).join('. ')}.`);
+  else parts.push('Nothing is due today.');
+  if (pressing.length) parts.push(`${pressing.length === 1 ? 'One thing needs' : `${pressing.length} things need`} attention: ${pressing.slice(0, 3).map((a) => a.title).join('. ')}.`);
+  return parts.join(' ').replace(/₦/g, 'naira ').replace(/°C?/g, ' degrees').replace(/(\d) ?mm\b/g, '$1 millimetres').replace(/(\d) ?kg\b/g, '$1 kilograms');
+}

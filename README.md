@@ -8,7 +8,8 @@ Built for smallholder farms and extension agents in Nigeria: phone-first, readab
 
 | Screen | What you get | Where the numbers come from |
 |---|---|---|
-| **Home** | The day at a glance: today's weather and spray window, what needs attention, this week's work from every field and every animal group (tick it off from here, with undo), and the whole farm in five lines: fields, animals, store, money. | Everything below |
+| **Record** | The gold button in the middle of the phone bar (top of the sidebar on a computer): eggs collected, animals died, money spent, money received, rain at a field, watering, store in or out, a job done. A few taps each, today or yesterday in one tap, undo on every save. Each entry goes where the rest of the app already looks: the flock's log, the field's record book, the water balance, the store, or the farm ledger. | Your records |
+| **Home** | The day at a glance: today's weather and spray window, what needs attention, this week's work from every field and every animal group (tick it off from here, with undo), the whole farm in five lines, and **the last 7 days** (eggs, money, rain, losses) to send on WhatsApp as a picture or as text. "Listen to today" reads it out. | Everything below |
 | **Tasks** | One list: crop jobs from every field, animal health work and your own tasks (once, daily, weekly or monthly), grouped overdue, today, this week and the next 30 days. | Plan engine, health schedules, your tasks |
 | **Animals** | Layers, broilers, goats, sheep, pigs, cattle and catfish ponds. Head count from additions, losses, sales and home use; eggs with the laying rate and a 14-day chart; feed for the week in 25 kg bags; when to sell; weights; money in and out per group. | Your records; typical feed intake by age (catfish by weighed average) |
 | **Health** | Vaccinations and deworming worked out from each group's age, ticked off with the product used; repeats count from the day it was done. Medicine withdrawal periods (copied from the label) block meat and egg sales until they end. Losses and missed doses flagged for the vet. | NVRI Vom and the Nigerian Newcastle schedule where they pin a date; marked "check with your vet" where practice varies |
@@ -18,7 +19,7 @@ Built for smallholder farms and extension agents in Nigeria: phone-first, readab
 | **Reminders** | The rest of the season's jobs as a calendar file (7 am alarm on the day each job opens), or one job at a time into Google Calendar. No account or push server. | iCalendar (RFC 5545) built on the phone |
 | **Weather** | Hour-by-hour spray windows for 72 h, 8-day forecast with ET₀, last 30 days of rain against the 10-year normal, monthly rainfall climatology. | Open-Meteo forecast API; ERA5 reanalysis via Open-Meteo archive |
 | **Field** | Daily root-zone water balance (30 days back, 7 ahead) with the crop's stress line, corrected by your own rain-gauge readings and irrigation log; soil pH, texture, organic carbon, N, CEC and usable water, with plain-language findings and lime estimate. Lab results override the estimate. | FAO-56 single-Kc balance; ISRIC SoilGrids 2.0; Saxton & Rawls (2006) pedotransfer |
-| **Money** | Budget with break-evens and a yield × price grid; **buy list** of seed, fertilizer bags and lime for the field, showing what the store already holds; **farm record book** (spend, harvest, sales; CSV and printable export); **sell or store** decision with storage losses, costs and interest; **salt-bottle drying check**. | Your inputs; crop seed and fertilizer rates |
+| **Money** | Opens on the **whole farm**: money in and out for this month, three months, the year or all time; which field or animal group pays its way; where the money goes (feed, fertilizer, labour…); and every entry behind the totals. Store purchases count once, wherever their cost was filed. Then, per field: budget with break-evens and a yield × price grid; **buy list** of seed, fertilizer bags and lime for the field, showing what the store already holds; **farm record book** (spend, harvest, sales; CSV and printable export); **sell or store** decision with storage losses, costs and interest; **salt-bottle drying check**. | Your inputs; crop seed and fertilizer rates |
 | **Seasons** | Correcting a planting date keeps that season's ticks and records. "Start next season" files the season's yield, spending and sales as the farm's track record, each with its own spreadsheet and printout. | Your record book |
 | **Backup** | Everything on the phone in one small file, shared to WhatsApp or Drive or downloaded; restore it on a new phone. Files that aren't Nexus Agri backups are refused before anything is touched. | — |
 | **Market prices** | Nearest monitored market's latest price for your crop, 24-month trend, and the usual harvest-to-lean-season swing, feeding the budget and storage tools. | WFP Nigeria market monitoring via HDX (server only) |
@@ -35,6 +36,7 @@ The farm's name and the farmer's name go on the menu's farm card. On a computer 
 - **No fake satellite or market feeds.** There is no free, keyless NDVI feed, so the app shows none. Market prices are WFP's monitored-market figures, shown with the market and month they come from; where there are none, prices are entered by the user.
 - **No accounts.** Farms, ticks and budgets live in the browser's storage on the device. A backup file moves them to a new phone.
 - **No unchecked translation.** Claude translates only the plan's text. The app compares the figures in every translated job with the English and keeps the English for any job where a number changed.
+- **No double counting.** A store purchase whose cost was filed in a record book or a flock's money is not counted again as a store cost; one filed nowhere else counts as a whole-farm cost.
 - **No guessed medicine data.** Withdrawal periods differ by product, so the farmer copies them from the label and the app counts the days. Vaccination timings that differ between products and vets are labelled as such.
 
 ## The agronomy
@@ -86,6 +88,7 @@ src/lib/crops.ts     Crop knowledge base
 src/lib/livestock.ts Animal knowledge base: health schedules, feed, losses, eggs, withdrawal periods
 src/lib/engine/      stage, water, spray, soil, plan, economics
 src/lib/             agenda (tasks and alerts), stock (the store), tasks, hub (farm-wide records),
+                     ledger (whole-farm money), report and reportImage (the week, as text and a picture),
                      seasons, calendar (iCalendar), backup, translate (figure check), records
 src/screens/         Home, Tasks, Today (Plan), Weather, Field, Animals, Health, Stock (Store),
                      Money, Ask, Alerts, FarmForm, Backup, Welcome

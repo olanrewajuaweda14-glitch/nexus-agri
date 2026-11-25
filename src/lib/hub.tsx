@@ -10,6 +10,7 @@ import { ANIMALS_KEY, eventsKey, type AnimalEvent, type AnimalGroup } from './li
 import { MOVES_KEY, STOCK_KEY, newId, type StockItem, type StockMove } from './stock';
 import { completeTask, pruneTasks, TASKS_KEY, type OwnTask } from './tasks';
 import { DISMISSED_KEY, pruneDismissed } from './agenda';
+import { LEDGER_KEY, type LedgerEntry } from './ledger';
 import { localToday } from './dates';
 
 export interface Profile {
@@ -46,6 +47,11 @@ export interface Hub {
   dismiss: (alertId: string) => void;
   undismissAll: () => void;
 
+  /** Money that belongs to the whole farm rather than one field or group. */
+  ledger: LedgerEntry[];
+  addLedger: (e: Omit<LedgerEntry, 'id'>) => LedgerEntry;
+  deleteLedger: (id: string) => void;
+
   /** Adds groups (with their logs), store items and moves that are not there yet, e.g. the sample farm. */
   importData: (d: { groups: AnimalGroup[]; events: Record<string, AnimalEvent[]>; stock: StockItem[]; moves: StockMove[] }) => void;
 }
@@ -71,6 +77,7 @@ export function HubProvider({ children }: { children: ReactNode }) {
   const [moves, setMoves] = useState<StockMove[]>(() => load(MOVES_KEY, []));
   const [tasks, setTasks] = useState<OwnTask[]>(() => pruneTasks(load(TASKS_KEY, []), localToday()));
   const [dismissed, setDismissed] = useState<Record<string, string>>(() => pruneDismissed(load(DISMISSED_KEY, {}), localToday()));
+  const [ledger, setLedger] = useState<LedgerEntry[]>(() => load(LEDGER_KEY, []));
 
   const setProfile = useCallback((p: Profile) => {
     const clean = { farmName: p.farmName?.trim() || undefined, farmerName: p.farmerName?.trim() || undefined };
@@ -182,6 +189,23 @@ export function HubProvider({ children }: { children: ReactNode }) {
     setDismissed({});
   }, []);
 
+  const addLedger = useCallback((e: Omit<LedgerEntry, 'id'>) => {
+    const entry: LedgerEntry = { id: newId('l'), ...e };
+    setLedger((all) => {
+      const next = [...all, entry];
+      save(LEDGER_KEY, next);
+      return next;
+    });
+    return entry;
+  }, []);
+  const deleteLedger = useCallback((id: string) => {
+    setLedger((all) => {
+      const next = all.filter((x) => x.id !== id);
+      save(LEDGER_KEY, next);
+      return next;
+    });
+  }, []);
+
   const importData = useCallback((d: { groups: AnimalGroup[]; events: Record<string, AnimalEvent[]>; stock: StockItem[]; moves: StockMove[] }) => {
     setGroups((all) => {
       const fresh = d.groups.filter((g) => !all.some((x) => x.id === g.id));
@@ -214,9 +238,9 @@ export function HubProvider({ children }: { children: ReactNode }) {
     () => ({
       profile, setProfile, groups, events, saveGroup, deleteGroup, addEvent, deleteEvent,
       stock, moves, saveItem, deleteItem, addMove, deleteMove,
-      tasks, saveTask, deleteTask, tickTask, untickTask, dismissed, dismiss, undismissAll, importData,
+      tasks, saveTask, deleteTask, tickTask, untickTask, dismissed, dismiss, undismissAll, importData, ledger, addLedger, deleteLedger,
     }),
-    [profile, setProfile, groups, events, saveGroup, deleteGroup, addEvent, deleteEvent, stock, moves, saveItem, deleteItem, addMove, deleteMove, tasks, saveTask, deleteTask, tickTask, untickTask, dismissed, dismiss, undismissAll, importData],
+    [profile, setProfile, groups, events, saveGroup, deleteGroup, addEvent, deleteEvent, stock, moves, saveItem, deleteItem, addMove, deleteMove, tasks, saveTask, deleteTask, tickTask, untickTask, dismissed, dismiss, undismissAll, importData, ledger, addLedger, deleteLedger],
   );
   return <HubContext.Provider value={value}>{children}</HubContext.Provider>;
 }

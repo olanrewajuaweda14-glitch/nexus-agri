@@ -32,7 +32,7 @@ export function sampleHub(): { groups: AnimalGroup[]; events: Record<string, Ani
   let i = 0;
   const e = (x: Omit<AnimalEvent, 'id'>): AnimalEvent => ({ id: `sample-e${String(i++).padStart(3, '0')}`, ...x });
   const layerEvents: AnimalEvent[] = [
-    e({ date: d(70), kind: 'cost', amount: 1_050_000, category: 'other', note: 'Bought 300 point-of-lay pullets' }),
+    e({ date: d(70), kind: 'cost', amount: 1_050_000, category: 'animals', note: 'Bought 300 point-of-lay pullets' }),
     e({ date: d(70), kind: 'health', stepId: 'worms', product: 'Piperazine' }),
     e({ date: d(70), kind: 'health', stepId: 'kom2', product: 'Komarov (NVRI)' }),
     e({ date: d(21), kind: 'health', stepId: 'ndlay', product: 'La Sota (NVRI)' }),
@@ -47,7 +47,7 @@ export function sampleHub(): { groups: AnimalGroup[]; events: Record<string, Ani
   pattern.forEach((n, k) => layerEvents.push(e({ date: d(13 - k), kind: 'eggs', count: n })));
 
   const goatEvents: AnimalEvent[] = [
-    e({ date: d(200), kind: 'cost', amount: 480_000, category: 'other', note: 'Bought 8 West African Dwarf goats' }),
+    e({ date: d(200), kind: 'cost', amount: 480_000, category: 'animals', note: 'Bought 8 West African Dwarf goats' }),
     e({ date: d(198), kind: 'health', stepId: 'ppr', product: 'PPR vaccine (NVRI)' }),
     e({ date: d(96), kind: 'health', stepId: 'worms', product: 'Albendazole' }),
     e({ date: d(34), kind: 'added', count: 3, note: 'Kids born' }),
@@ -64,7 +64,7 @@ export function sampleHub(): { groups: AnimalGroup[]; events: Record<string, Ani
     { id: 'sample-m001', itemId: 'sample-urea', date: d(20), kind: 'in', qty: 4, amount: 168_000, note: 'From the dealer in Bodija' },
     { id: 'sample-m002', itemId: 'sample-npk', date: d(45), kind: 'in', qty: 16, amount: 640_000 },
     { id: 'sample-m003', itemId: 'sample-npk', date: d(36), kind: 'out', qty: 16, note: 'Basal NPK on the sample field' },
-    { id: 'sample-m004', itemId: 'sample-mash', date: d(12), kind: 'in', qty: 20, amount: 260_000 },
+    { id: 'sample-m004', itemId: 'sample-mash', date: d(12), kind: 'in', qty: 20, amount: 260_000, filed: true },
     { id: 'sample-m005', itemId: 'sample-mash', date: d(1), kind: 'out', qty: 13, note: 'Fed to the layers' },
     { id: 'sample-m006', itemId: 'sample-lasota', date: d(25), kind: 'in', qty: 3, amount: 4_500 },
     { id: 'sample-m007', itemId: 'sample-lasota', date: d(21), kind: 'out', qty: 2, note: 'Layer booster' },

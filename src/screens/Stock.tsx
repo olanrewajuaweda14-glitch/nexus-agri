@@ -90,7 +90,7 @@ function ItemForm({ farms, onDone }: { farms: Farm[]; onDone: (id?: string) => v
     hub.saveItem(item);
     if (qty > 0) {
       const date = localToday();
-      hub.addMove({ itemId: item.id, date, kind: 'in', qty, amount: paid > 0 ? paid : undefined, note: 'Starting stock' });
+      hub.addMove({ itemId: item.id, date, kind: 'in', qty, amount: paid > 0 ? paid : undefined, filed: paid > 0 && !!costTo, note: 'Starting stock' });
       if (paid > 0) recordCost(hub, farms, costTo, item, qty, paid, date);
     }
     onDone(item.id);
@@ -155,9 +155,9 @@ function CostTarget({ farms, value, onChange }: { farms: Farm[]; value: string; 
   const { groups } = useHub();
   return (
     <label className="block max-w-md">
-      <span className="mb-1 block font-bold">Also record the cost in</span>
+      <span className="mb-1 block font-bold">Count the cost under</span>
       <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">Nowhere else</option>
+        <option value="">The whole farm's costs</option>
         {farms.map((f) => <option key={f.id} value={`f:${f.id}`}>{f.name} record book</option>)}
         {groups.filter((g) => !g.closed).map((g) => <option key={g.id} value={`g:${g.id}`}>{g.name} costs</option>)}
       </select>
@@ -202,7 +202,7 @@ function ItemPanel({ item, qty, farms }: { item: StockItem; qty: number; farms: 
     if (mode === 'out' && n > qty + 1e-9) return setError(`The store only has ${qtyText(qty)}. Use "Count" if the record is wrong.`);
     if (mode === 'count' && !(n >= 0)) return setError('Enter what you counted.');
     const date = localToday();
-    hub.addMove({ itemId: item.id, date, kind: mode, qty: n, amount: mode === 'in' && amount > 0 ? amount : undefined, note: note.trim() || undefined });
+    hub.addMove({ itemId: item.id, date, kind: mode, qty: n, amount: mode === 'in' && amount > 0 ? amount : undefined, filed: mode === 'in' && amount > 0 && !!costTo, note: note.trim() || undefined });
     if (mode === 'in' && amount > 0) recordCost(hub, farms, costTo, item, n, amount, date);
     setMode(null);
   };

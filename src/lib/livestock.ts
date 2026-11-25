@@ -270,8 +270,8 @@ export interface AnimalEvent {
   meatDays?: number;
   /** From the product label: days before eggs may be eaten or sold. */
   eggDays?: number;
-  /** cost: feed, medicine or other. */
-  category?: 'feed' | 'medicine' | 'other';
+  /** cost: feed, medicine, buying the animals, or other. */
+  category?: 'feed' | 'medicine' | 'animals' | 'other';
   note?: string;
 }
 

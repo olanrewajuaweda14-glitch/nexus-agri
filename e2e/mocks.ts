@@ -134,8 +134,14 @@ export async function nav(page: Page, name: string) {
   const direct = main.getByRole('button', { name: new RegExp(`^${target}`) });
   if (await direct.count()) await direct.first().click();
   else {
-    await main.getByRole('button', { name: 'Menu' }).click();
+    await page.getByRole('button', { name: 'Open menu' }).filter({ visible: true }).click();
     await page.getByRole('dialog', { name: 'Menu' }).getByRole('button', { name: new RegExp(`^${target}`) }).click();
   }
   if (crop && crop !== 'Plan') await page.getByRole('tablist', { name: 'Crop screens' }).getByRole('tab', { name: crop }).click();
+}
+
+/** Opens the Record sheet: the gold button in the phone bar or at the top of the sidebar. */
+export async function openRecord(page: Page) {
+  await page.getByRole('button', { name: /^Record$/ }).filter({ visible: true }).first().click();
+  await page.getByRole('dialog', { name: 'Record' }).waitFor();
 }

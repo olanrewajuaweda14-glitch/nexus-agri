@@ -24,7 +24,7 @@ for (const crop of CROPS) {
       }, farm);
       await page.goto('/#plan');
       await page.getByRole('heading', { name: "This week's plan" }).waitFor();
-      const screens: [string, string | null][] = [['Plan', null], ['Weather', null], ['Field', null], ['Money', 'Budget'], ['Money', 'Buy list'], ['Money', 'Records'], ['Money', 'Sell or store'], ['Ask', null], ['Home', null], ['Tasks', null], ['Alerts', null]];
+      const screens: [string, string | null][] = [['Plan', null], ['Weather', null], ['Field', null], ['Money', 'Whole farm'], ['Money', 'Budget'], ['Money', 'Buy list'], ['Money', 'Records'], ['Money', 'Sell or store'], ['Ask', null], ['Home', null], ['Tasks', null], ['Alerts', null]];
       for (const [tab, sub] of screens) {
         await nav(page, tab);
         if (sub) await page.getByRole('radio', { name: sub }).click();

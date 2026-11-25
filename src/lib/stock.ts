@@ -71,8 +71,15 @@ export interface StockMove {
   qty: number;
   /** ₦ paid, for "in". */
   amount?: number;
+  /** The amount is also in a field's record book, a group's money or the farm ledger, so it is not counted again. */
+  filed?: boolean;
   note?: string;
 }
+
+/** Which whole-farm cost a store purchase counts as. */
+export const STOCK_COST: Record<StockCategory, 'fert' | 'seed' | 'chem' | 'feed' | 'medicine' | 'other'> = {
+  fertilizer: 'fert', seed: 'seed', chemical: 'chem', feed: 'feed', medicine: 'medicine', produce: 'other', other: 'other',
+};
 
 export const STOCK_KEY = 'na:stock';
 export const MOVES_KEY = 'na:stock-moves';

@@ -116,6 +116,7 @@ test.describe('tabs', () => {
     await mockApi(page);
     await startSample(page);
     await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Budget' }).click();
     await expect(page.getByText(/example figures/)).toBeVisible();
     const price = page.getByRole('textbox').nth(1);
     await price.fill('300000');
@@ -237,6 +238,7 @@ test.describe('deployment modes', () => {
     await nav(page, 'Ask');
     await expect(page.getByText('The AI advisor needs the Nexus Agri server.')).toBeVisible();
     await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Budget' }).click();
     await expect(page.getByText(/Market prices aren't available right now/)).toBeVisible();
   });
 });
@@ -274,7 +276,7 @@ test.describe('quality', () => {
       expect(overflow, `${tab} tab overflows by ${overflow}px`).toBeLessThanOrEqual(0);
     }
     await nav(page, 'Money');
-    for (const view of ['Buy list', 'Records', 'Sell or store']) {
+    for (const view of ['Whole farm', 'Budget', 'Buy list', 'Records', 'Sell or store']) {
       await page.getByRole('radio', { name: view }).click();
       await page.waitForTimeout(300);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -424,6 +426,7 @@ test.describe('farmer tools', () => {
     await mockApi(page);
     await startSample(page);
     await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'Budget' }).click();
     await expect(page.getByText('₦62,000')).toBeVisible();
     await expect(page.getByText(/Bodija, Oyo, near you/)).toBeVisible();
     await expect(page.getByText(/usually cheapest in/)).toBeVisible();
@@ -472,7 +475,7 @@ test.describe('opening the app', () => {
     // A field on Home opens its plan; the logo comes back to Home.
     await again.getByRole('list', { name: 'Fields' }).getByRole('button', { name: /Sample: maize near Ibadan/ }).click();
     await expect(again.getByRole('heading', { name: "This week's plan" })).toBeVisible();
-    await again.getByRole('button', { name: 'Nexus Agri home' }).filter({ visible: true }).click();
+    await nav(again, 'Home');
     await expect(again.getByRole('heading', { name: "This week's work" })).toBeVisible();
   });
 

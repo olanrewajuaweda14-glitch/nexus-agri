@@ -35,7 +35,7 @@ export function Animals({ farms, insights, openGroup, startAdding }: { farms: Fa
         onCancel={() => show(initial ? { kind: 'group', id: initial.id } : { kind: 'list' })}
         onSave={(g, cost) => {
           hub.saveGroup(g);
-          if (cost > 0 && !initial) hub.addEvent(g.id, { date: g.startDate, kind: 'cost', amount: cost, category: 'other', note: `Bought ${g.startCount} ${SPECIES[g.species].many}` });
+          if (cost > 0 && !initial) hub.addEvent(g.id, { date: g.startDate, kind: 'cost', amount: cost, category: 'animals', note: `Bought ${g.startCount} ${SPECIES[g.species].many}` });
           show({ kind: 'group', id: g.id });
         }}
       />
@@ -519,7 +519,7 @@ function describe(e: AnimalEvent, g: AnimalGroup): string {
     case 'added': return `${animals(e.count)} added${paid}`;
     case 'weight': return `Average weight ${e.kg! < 1 ? `${Math.round(e.kg! * 1000)} g` : `${e.kg} kg`}`;
     case 'income': return `${e.note || 'Produce'} sold${paid}`;
-    case 'cost': return `${e.note || { feed: 'Feed', medicine: 'Medicine', other: 'Other costs' }[e.category ?? 'other']}${paid}`;
+    case 'cost': return `${e.note || { feed: 'Feed', medicine: 'Medicine', animals: 'Buying the animals', other: 'Other costs' }[e.category ?? 'other']}${paid}`;
     case 'health': {
       const step = e.stepId ? sp.health.find((s) => s.id === e.stepId)?.title : null;
       return `${step ?? 'Treatment'}${e.product ? `: ${e.product}` : ''}${paid}${e.note ? ` (${e.note})` : ''}`;

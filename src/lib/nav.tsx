@@ -2,7 +2,9 @@ import { createContext, useContext } from 'react';
 
 /** Every screen in the app. "today", "weather" and "field" are the crop screens for the chosen field. */
 export type Tab = 'home' | 'tasks' | 'today' | 'weather' | 'field' | 'animals' | 'health' | 'store' | 'money' | 'ask' | 'alerts';
-export type MoneyView = 'budget' | 'shop' | 'records' | 'store';
+export type MoneyView = 'farm' | 'budget' | 'shop' | 'records' | 'store';
+/** What the Record sheet can open straight to. */
+export type RecordKind = 'eggs' | 'loss' | 'spent' | 'received' | 'rain' | 'water' | 'store' | 'job';
 
 export const CROP_TABS: Tab[] = ['today', 'weather', 'field'];
 
@@ -32,7 +34,9 @@ export interface Nav {
   startSeason: () => void;
   addField: () => void;
   backup: () => void;
+  /** Opens the Record sheet, at one kind of entry if given. */
+  record: (kind?: RecordKind) => void;
 }
 
-export const NavContext = createContext<Nav>({ go: () => {}, openField: () => {}, startSeason: () => {}, addField: () => {}, backup: () => {} });
+export const NavContext = createContext<Nav>({ go: () => {}, openField: () => {}, startSeason: () => {}, addField: () => {}, backup: () => {}, record: () => {} });
 export const useNav = () => useContext(NavContext);

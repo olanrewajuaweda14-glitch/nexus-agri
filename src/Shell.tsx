@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  Banknote, Bell, ChevronDown, HardDriveDownload, HeartPulse, House, ListChecks, Menu, MessageCircle, PawPrint, Pencil, Plus, RefreshCw, Sprout, Warehouse, WifiOff, X,
+  Banknote, Bell, Check, ChevronDown, HardDriveDownload, Undo2, HeartPulse, House, ListChecks, Menu, MessageCircle, PawPrint, Pencil, Plus, RefreshCw, Sprout, Warehouse, WifiOff, X,
 } from 'lucide-react';
 import type { Farm } from './lib/types';
 import type { Insights } from './lib/useInsights';
 import { useHub, type Profile } from './lib/hub';
 import { activeAlerts, badgeCount, buildAgenda, buildAlerts, type FieldView, type GroupView } from './lib/agenda';
-import { CROP_TABS, NavContext, type Intent, type Tab } from './lib/nav';
+import { CROP_TABS, NavContext, type Intent, type RecordKind, type Tab } from './lib/nav';
 import { LAST_BACKUP_KEY } from './lib/backup';
 import { CROPS } from './lib/crops';
 import { localToday } from './lib/dates';
@@ -14,6 +14,8 @@ import { ago } from './lib/format';
 import { load } from './lib/storage';
 import { Logo } from './components/Logo';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { RecordSheet, type Saved } from './components/RecordSheet';
+import { NoFields } from './components/NoFields';
 import { Today } from './screens/Today';
 import { Weather } from './screens/Weather';
 import { Field } from './screens/Field';
@@ -46,7 +48,6 @@ const SECTIONS: Section[] = [
   { id: 'ask', label: 'Ask the advisor', Icon: MessageCircle },
   { id: 'alerts', label: 'Alerts', Icon: Bell },
 ];
-const BAR: Tab[] = ['home', 'today', 'animals', 'money'];
 const TITLES: Record<Tab, string> = {
   home: 'Home', tasks: 'Tasks', today: 'Crops', weather: 'Crops', field: 'Crops', animals: 'Animals', health: 'Health', store: 'Store', money: 'Money', ask: 'Ask the advisor', alerts: 'Alerts',
 };
@@ -78,6 +79,15 @@ export function Shell(p: ShellProps) {
   const [intent, setIntent] = useState<Intent | null>(p.initialIntent ?? null);
   const [visit, setVisit] = useState(0);
   const [drawer, setDrawer] = useState(false);
+  // false: closed; true: open at the list of kinds; a kind: open at that form.
+  const [recording, setRecording] = useState<boolean | RecordKind>(false);
+  const [toast, setToast] = useState<Saved | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 7000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const covered = drawer || recording !== false;
   const [online, setOnline] = useState(navigator.onLine);
   const today = localToday();
 
@@ -124,7 +134,7 @@ export function Shell(p: ShellProps) {
     [field?.id, go, p],
   );
   const nav = useMemo(
-    () => ({ go, openField, startSeason: p.onNewSeason, addField: p.onAddField, backup: p.onBackup }),
+    () => ({ go, openField, startSeason: p.onNewSeason, addField: p.onAddField, backup: p.onBackup, record: (kind?: RecordKind) => setRecording(kind ?? true) }),
     [go, openField, p.onNewSeason, p.onAddField, p.onBackup],
   );
 
@@ -150,7 +160,7 @@ export function Shell(p: ShellProps) {
   const ins = field ? insights[field.id] : null;
   const place = farms.find((f) => f.placeName)?.placeName ?? null;
   const isCrop = CROP_TABS.includes(tab);
-  const needsField = isCrop || tab === 'money';
+  const needsField = isCrop;
   const wide = !needsField && tab !== 'ask';
 
   const screen = (() => {
@@ -169,15 +179,15 @@ export function Shell(p: ShellProps) {
         return <Alerts alerts={alerts} hidden={hiddenAlerts} />;
       case 'ask':
         return <Ask farm={field} ins={ins} initialQuestion={intent?.ask} initialMode={intent?.askMode} />;
+      case 'money':
+        return <Money farm={field} ins={ins} farms={farms} onSwitchField={p.onSwitchField} onAddField={p.onAddField} initialView={intent?.money} />;
     }
-    if (!field || !ins) return <NoFields onAdd={p.onAddField} money={tab === 'money'} />;
+    if (!field || !ins) return <NoFields onAdd={p.onAddField} />;
     switch (tab) {
       case 'weather':
         return <Weather farm={field} ins={ins} />;
       case 'field':
         return <Field farm={field} ins={ins} onUpdateFarm={p.onUpdateField} />;
-      case 'money':
-        return <Money farm={field} ins={ins} initialView={intent?.money} />;
       default:
         return <Today farm={field} ins={ins} done={done} toggleDone={p.toggleDone} />;
     }
@@ -187,22 +197,25 @@ export function Shell(p: ShellProps) {
     <NavContext.Provider value={nav}>
       <div className="min-h-dvh lg:flex">
         {/* Computer: the whole farm in a sidebar */}
-        <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col bg-forest text-forest-ink lg:flex">
+        <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col bg-forest text-forest-ink lg:flex" inert={covered}>
           <button type="button" onClick={() => go('home')} className="mx-4 mt-5 rounded-lg px-2 py-1 text-left hover:bg-forest-2" aria-label="Nexus Agri home">
             <Logo onDark />
           </button>
-          <nav aria-label="Main" className="mt-6 flex-1 overflow-y-auto px-3">
+          <button type="button" onClick={() => setRecording(true)} className="btn btn-accent press mx-3 mt-5 py-3 text-base">
+            <Plus className="h-5 w-5" strokeWidth={2.6} aria-hidden /> Record
+          </button>
+          <nav aria-label="Main" className="mt-4 flex-1 overflow-y-auto px-3">
             <NavList tab={tab} counts={counts} go={go} />
           </nav>
           <FarmCard className="m-3" place={place} />
         </aside>
 
-        <div className="min-w-0 flex-1" inert={drawer}>
+        <div className="min-w-0 flex-1" inert={covered}>
           {/* Phone: green band with the bell */}
           <header className="sticky top-0 z-30 bg-forest text-forest-ink pt-[env(safe-area-inset-top)] lg:hidden">
-            <div className="mx-auto flex h-14 max-w-3xl items-center gap-2 px-3">
-              <button type="button" onClick={() => go('home')} className="rounded-lg p-1" aria-label="Nexus Agri home">
-                <Logo compact onDark />
+            <div className="mx-auto flex h-14 max-w-3xl items-center gap-1.5 px-2">
+              <button type="button" onClick={() => setDrawer(true)} aria-expanded={drawer} className="rounded-full p-2.5 hover:bg-forest-2" aria-label="Open menu">
+                <Menu className="h-5 w-5" aria-hidden />
               </button>
               <p className="min-w-0 flex-1 truncate text-lg font-bold">{tab === 'home' ? hub.profile.farmName ?? 'Nexus Agri' : TITLES[tab]}</p>
               {!online && <WifiOff className="h-4 w-4 text-maize" aria-label="Offline" />}
@@ -221,10 +234,22 @@ export function Shell(p: ShellProps) {
           </main>
         </div>
 
-        {/* Phone: the four places farmers go most, and the full menu */}
-        <nav className="fixed inset-x-0 bottom-0 z-30 bg-forest pb-[env(safe-area-inset-bottom)] text-forest-ink lg:hidden" aria-label="Main" inert={drawer}>
-          <ul className="mx-auto flex max-w-md px-1">
-            {BAR.map((id) => {
+        {/* Phone: the four places farmers go most, and Record in the middle */}
+        <nav className="fixed inset-x-0 bottom-0 z-30 bg-forest pb-[env(safe-area-inset-bottom)] text-forest-ink lg:hidden" aria-label="Main" inert={covered}>
+          <ul className="mx-auto flex max-w-md items-end px-1">
+            {(['home', 'today', 'record', 'animals', 'money'] as const).map((id) => {
+              if (id === 'record') {
+                return (
+                  <li key={id} className="flex-1">
+                    <button type="button" onClick={() => setRecording(true)} className="flex w-full flex-col items-center gap-1 pb-2 text-[12px] font-bold text-forest-ink">
+                      <span className="-mt-5 flex h-14 w-14 items-center justify-center rounded-full bg-maize text-forest shadow-lg ring-4 ring-forest press">
+                        <Plus className="h-7 w-7" strokeWidth={2.6} aria-hidden />
+                      </span>
+                      Record
+                    </button>
+                  </li>
+                );
+              }
               const s = SECTIONS.find((x) => x.id === id)!;
               const on = sectionOf(tab) === id;
               return (
@@ -243,16 +268,39 @@ export function Shell(p: ShellProps) {
                 </li>
               );
             })}
-            <li className="flex-1">
-              <button type="button" onClick={() => setDrawer(true)} aria-expanded={drawer} className="flex w-full flex-col items-center gap-1 pb-2 pt-2 text-[12px] font-bold">
-                <span className={`relative flex h-8 w-14 items-center justify-center rounded-full ${!BAR.includes(sectionOf(tab)) ? 'bg-maize text-forest' : 'text-forest-ink-2'}`}>
-                  <Menu className="h-5 w-5" aria-hidden />
-                </span>
-                <span className={!BAR.includes(sectionOf(tab)) ? 'text-forest-ink' : 'text-forest-ink-2'}>Menu</span>
-              </button>
-            </li>
           </ul>
         </nav>
+
+        {recording && (
+          <RecordSheet
+            farms={farms}
+            insights={insights}
+            agenda={agenda}
+            done={done}
+            toggleDone={p.toggleDone}
+            onClose={() => setRecording(false)}
+            onSaved={setToast}
+            onOpenStore={() => go('store')}
+            initialKind={recording === true ? undefined : (recording as RecordKind)}
+          />
+        )}
+
+        {toast && (
+          <div role="status" className="fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-md items-center gap-3 rounded-xl bg-forest px-4 py-3 text-forest-ink shadow-xl [animation:rise_240ms_var(--ease-out)_both] lg:bottom-6">
+            <Check className="h-5 w-5 shrink-0 text-maize" aria-hidden />
+            <span className="min-w-0 flex-1">{toast.text}</span>
+            <button
+              type="button"
+              onClick={() => {
+                toast.undo();
+                setToast(null);
+              }}
+              className="inline-flex shrink-0 items-center gap-1 font-bold text-maize"
+            >
+              <Undo2 className="h-4 w-4" aria-hidden /> Undo
+            </button>
+          </div>
+        )}
 
         {drawer && (
           <Drawer onClose={() => setDrawer(false)}>
@@ -493,23 +541,6 @@ function FieldSwitcher({ field, farms, onSwitch, onAdd, onBackup }: { field: Far
           </ul>
         </>
       )}
-    </div>
-  );
-}
-
-function NoFields({ onAdd, money }: { onAdd: () => void; money: boolean }) {
-  return (
-    <div className="card space-y-3 p-6">
-      <Sprout className="h-8 w-8 text-leaf" aria-hidden />
-      <h1 className="text-2xl font-bold">{money ? 'Crop money needs a field' : 'No fields yet'}</h1>
-      <p className="max-w-prose text-ink-2">
-        {money
-          ? 'Budgets, the buy list and the record book work per field. Money for animals is kept with each group under Animals.'
-          : 'Put a field on the map and say what you planted. The plan, spray windows and water balance are worked out from its weather and soil.'}
-      </p>
-      <button type="button" className="btn btn-primary" onClick={onAdd}>
-        <Plus className="h-4 w-4" aria-hidden /> Add a field
-      </button>
     </div>
   );
 }

@@ -22,6 +22,17 @@ export const recordsKey = (farm: Farm, seasonId = farm.seasonId ?? farm.planting
 
 export const loadRecords = (farm: Farm, seasonId?: string) => load<FarmRecord[]>(recordsKey(farm, seasonId), []);
 
+/** Removes one entry from this planting's record book (used to undo a quick entry). */
+export function removeRecord(farm: Farm, id: string) {
+  save(recordsKey(farm), loadRecords(farm).filter((r) => r.id !== id));
+}
+
+/** Every entry the field has, this season and past ones. */
+export function allRecords(farm: Farm): FarmRecord[] {
+  const seasons = [farm.seasonId ?? farm.plantingDate, ...(farm.history ?? []).map((h) => h.seasonId)];
+  return [...new Set(seasons)].flatMap((id) => loadRecords(farm, id));
+}
+
 /** Appends one entry to this planting's record book. */
 export function addRecord(farm: Farm, r: Omit<FarmRecord, 'id'>): FarmRecord {
   const entry: FarmRecord = { id: `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, ...r };

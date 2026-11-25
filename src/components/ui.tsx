@@ -56,7 +56,26 @@ export function Stat({ label, value, unit, note, tone, decimals = 0, format }: {
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string }) {
+export function Segmented<T extends string>({ value, options, onChange, label, wrap = false }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string; wrap?: boolean }) {
+  if (wrap) {
+    // Many options on a narrow phone: separate pills that wrap, never squashed labels.
+    return (
+      <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={value === o.value}
+            onClick={() => onChange(o.value)}
+            className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-sm font-bold transition-colors ${value === o.value ? 'border-forest bg-forest text-forest-ink' : 'border-line bg-card text-ink-2 hover:text-ink'}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
   return (
     <div role="radiogroup" aria-label={label} className="inline-flex rounded-full border border-line bg-card p-0.5">
       {options.map((o) => (
@@ -66,7 +85,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`rounded-full px-3 py-1.5 text-sm font-bold transition-colors ${value === o.value ? 'bg-forest text-forest-ink' : 'text-ink-2 hover:text-ink'}`}
+          className={`whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-bold transition-colors ${value === o.value ? 'bg-forest text-forest-ink' : 'text-ink-2 hover:text-ink'}`}
         >
           {o.label}
         </button>

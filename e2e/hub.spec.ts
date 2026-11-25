@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mockApi, nav, startSample } from './mocks';
+import { mockApi, nav, openRecord, startSample } from './mocks';
+import { readFile } from 'node:fs/promises';
 
 const errorsOf = (page: Page) => {
   const errors: string[] = [];
@@ -10,10 +11,8 @@ const errorsOf = (page: Page) => {
   return errors;
 };
 
-const daysAgo = (n: number) => {
-  const d = new Date(Date.now() - n * 864e5);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-};
+/** Lagos date `n` days ago, matching the browser's time zone in these tests. */
+const daysAgo = (n: number) => new Date(Date.now() + 3600_000 - n * 864e5).toISOString().slice(0, 10);
 
 test.describe('home', () => {
   test('shows the whole farm: weather, alerts, this week’s work across crops and animals, and a summary', async ({ page }) => {
@@ -168,7 +167,7 @@ test.describe('store', () => {
     const bought = urea.getByRole('form', { name: 'Bought' });
     await bought.getByLabel('Quantity').fill('2');
     await bought.getByLabel('Paid').fill('84000');
-    await bought.getByLabel('Also record the cost in').selectOption({ label: 'Sample: maize near Ibadan record book' });
+    await bought.getByLabel('Count the cost under').selectOption({ label: 'Sample: maize near Ibadan record book' });
     await bought.getByRole('button', { name: 'Save' }).click();
     await expect(urea.locator('.num').first()).toHaveText('6');
     await expect(urea.getByRole('list', { name: 'Urea history' })).toContainText('+2 in, ₦84,000');
@@ -257,7 +256,7 @@ test.describe('menu and farm details', () => {
     await mockApi(page);
     await startSample(page, 'Home');
     const isPhone = (page.viewportSize()?.width ?? 1280) < 1024;
-    if (isPhone) await page.locator('nav[aria-label=Main]:visible').getByRole('button', { name: 'Menu' }).click();
+    if (isPhone) await page.getByRole('button', { name: 'Open menu' }).click();
     const scope = isPhone ? page.getByRole('dialog', { name: 'Menu' }) : page.locator('aside');
     await scope.getByRole('button', { name: 'Add farm details' }).click();
     const form = scope.getByRole('form', { name: 'Farm details' });
@@ -296,5 +295,131 @@ test.describe('buy list and store', () => {
     await expect(page.locator('#entries li').filter({ hasText: 'Urea: 2 bags (50 kg)' })).toContainText('₦84,000');
     await nav(page, 'Store');
     await expect(page.locator('#item-sample-urea .num').first()).toHaveText('6');
+  });
+});
+
+test.describe('record sheet', () => {
+  test('eggs recorded from the Record button land in the flock, adding to today, with undo', async ({ page }) => {
+    const errors = errorsOf(page);
+    await mockApi(page);
+    await startSample(page, 'Home');
+    await openRecord(page);
+    const sheet = page.getByRole('dialog', { name: 'Record' });
+    await sheet.getByRole('button', { name: /^Eggs collected/ }).click();
+    const form = sheet.getByRole('form', { name: 'Eggs collected' });
+    await expect(form).toContainText('Already 264 recorded for this day');
+    await form.getByLabel('How many eggs').fill('20');
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Saved 20 eggs for Sample layers' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Animals' })).toContainText('284 eggs today');
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(page.getByRole('list', { name: 'Animals' })).toContainText('264 eggs today');
+    expect(errors).toEqual([]);
+  });
+
+  test('money is filed where it belongs and adds up in the whole-farm money view', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page, 'Home');
+
+    // Transport belongs to no one field or flock: the whole farm.
+    await openRecord(page);
+    await page.getByRole('dialog', { name: 'Record' }).getByRole('button', { name: /^Money spent/ }).click();
+    let form = page.getByRole('form', { name: 'Money spent' });
+    await form.getByLabel('Amount in naira').fill('15000');
+    await form.getByRole('radio', { name: 'Transport' }).click();
+    await expect(form.getByLabel('Which part of the farm')).toHaveValue('farm');
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Spent ₦15,000: Transport, the whole farm' })).toBeVisible();
+
+    // Feed goes to the flock by default.
+    await openRecord(page);
+    await page.getByRole('dialog', { name: 'Record' }).getByRole('button', { name: /^Money spent/ }).click();
+    form = page.getByRole('form', { name: 'Money spent' });
+    await form.getByLabel('Amount in naira').fill('39000');
+    await form.getByRole('radio', { name: 'Feed' }).click();
+    await expect(form.getByLabel('Which part of the farm')).toHaveValue('g:sample-layers');
+    await form.getByRole('button', { name: 'Save' }).click();
+
+    // A crop sale goes in the field's record book.
+    await openRecord(page);
+    await page.getByRole('dialog', { name: 'Record' }).getByRole('button', { name: /^Money received/ }).click();
+    form = page.getByRole('form', { name: 'Money received' });
+    await form.getByLabel('Amount in naira').fill('60000');
+    await form.getByRole('radio', { name: 'Crops' }).click();
+    await form.getByLabel('Kilograms sold').fill('200');
+    await form.getByRole('button', { name: 'Save' }).click();
+
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'This month' }).click();
+    const parts = page.getByRole('list', { name: 'Money by part of the farm' });
+    // The whole-farm line also holds the sample's store purchases, so check it is there rather than its total.
+    await expect(parts.getByRole('listitem').filter({ hasText: 'Whole farm' })).toBeVisible();
+    await expect(parts.getByRole('listitem').filter({ hasText: 'Sample: maize near Ibadan' })).toContainText('In ₦60k');
+    await expect(page.getByRole('list', { name: 'Spending by kind' })).toContainText('Transport');
+    const latest = page.getByRole('list', { name: 'Latest money entries' });
+    await expect(latest).toContainText('Transport');
+    await expect(latest).toContainText('−₦15,000');
+    await expect(latest).toContainText('+₦60,000');
+
+    await page.getByRole('radio', { name: 'Records' }).click();
+    await expect(page.locator('#entries li').filter({ hasText: 'Crop sale' })).toContainText('₦60,000');
+    await nav(page, 'Animals');
+    await page.getByRole('button', { name: /Sample layers/ }).click();
+    await expect(page.getByRole('list', { name: 'Record' })).toContainText('Feed for ₦39,000');
+  });
+
+  test('rain from the Record sheet goes into the field’s water balance', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page, 'Home');
+    await openRecord(page);
+    await page.getByRole('dialog', { name: 'Record' }).getByRole('button', { name: /^Rain at a field/ }).click();
+    const form = page.getByRole('form', { name: 'Rain at a field' });
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(form.getByRole('alert')).toContainText('Enter the gauge reading');
+    await form.getByRole('button', { name: 'Heavy storm ≈ 30 mm' }).click();
+    await form.getByRole('button', { name: 'Yesterday' }).click();
+    await form.getByRole('button', { name: 'Save' }).click();
+    await nav(page, 'Field');
+    await expect(page.getByRole('list', { name: 'Your water log' })).toContainText('30 mm');
+  });
+
+  test('store purchases from the sheet count once in the money', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page, 'Home');
+    await openRecord(page);
+    await page.getByRole('dialog', { name: 'Record' }).getByRole('button', { name: /^Store in or out/ }).click();
+    const form = page.getByRole('form', { name: 'Store in or out' });
+    await form.getByLabel('Item').selectOption({ label: 'Layer mash' });
+    await form.getByRole('radio', { name: 'Bought or harvested' }).click();
+    await form.getByLabel('Quantity').fill('3');
+    await form.getByLabel('Paid').fill('39000');
+    await form.getByLabel('Count the cost under').selectOption({ label: 'Sample layers' });
+    await form.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Added 3 bags (25 kg) of Layer mash' })).toBeVisible();
+
+    await nav(page, 'Money');
+    await page.getByRole('radio', { name: 'This month' }).click();
+    const latest = page.getByRole('list', { name: 'Latest money entries' });
+    // Filed with the flock, so it appears once: as the flock's cost, not again as a store purchase.
+    await expect(latest.getByRole('listitem').filter({ hasText: '−₦39,000' })).toHaveCount(1);
+    await expect(latest.getByRole('listitem').filter({ hasText: '−₦39,000' })).toContainText('Sample layers');
+  });
+});
+
+test.describe('weekly report', () => {
+  test('the last 7 days can be sent as a picture or as text', async ({ page }) => {
+    await mockApi(page);
+    await startSample(page, 'Home');
+    const week = page.getByRole('region', { name: 'The last 7 days' });
+    await expect(week).toContainText('Eggs');
+    await expect(week).toContainText('Animals lost');
+    const download = page.waitForEvent('download');
+    await week.getByRole('button', { name: 'Send the week as a picture' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^nexus-agri-week-\d{4}-\d{2}-\d{2}\.png$/);
+    const bytes = await readFile((await file.path())!);
+    expect(bytes.subarray(1, 4).toString()).toBe('PNG');
+    expect(bytes.length).toBeGreaterThan(20_000);
+    await expect(page.getByRole('status').filter({ hasText: /Saved nexus-agri-week/ })).toBeVisible();
   });
 });

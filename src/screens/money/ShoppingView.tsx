@@ -172,7 +172,7 @@ function BoughtForm({ it, farm, price, onDone }: { it: ShoppingItem; farm: Farm;
       item = created;
     }
     const amount = paid > 0 ? paid : 0;
-    hub.addMove({ itemId: item.id, date, kind: 'in', qty, amount: amount || undefined, note: `For ${farm.name}` });
+    hub.addMove({ itemId: item.id, date, kind: 'in', qty, amount: amount || undefined, filed: !!amount, note: `For ${farm.name}` });
     if (amount) addRecord(farm, { date, kind: 'expense', category: it.id === 'seed' ? 'seed' : 'fert', label: `${it.name}: ${stockQty(qty)} ${unitText(unit, qty)}`, amount });
     onDone();
   };
